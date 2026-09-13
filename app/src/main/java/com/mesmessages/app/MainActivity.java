@@ -7,6 +7,7 @@ import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.ContactsContract;
 import android.provider.Settings;
 import android.provider.Telephony;
 import android.view.Gravity;
@@ -21,15 +22,17 @@ import android.widget.TextView;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class MainActivity extends Activity {
-    private static final int REQ_SMS = 100;
+    private static final int REQ_PERMISSIONS = 100;
 
     private final List<MessageItem> messages = new ArrayList<>();
+    private final Map<String, String> contactNames = new HashMap<>();
     private MessageAdapter adapter;
     private TextView status;
     private Button permissionButton;
@@ -59,8 +62,8 @@ public class MainActivity extends Activity {
         buttons.setOrientation(LinearLayout.HORIZONTAL);
 
         permissionButton = new Button(this);
-        permissionButton.setText("Autoriser SMS/MMS");
-        permissionButton.setOnClickListener(v -> requestSmsPermission());
+        permissionButton.setText("Autoriser SMS/contacts");
+        permissionButton.setOnClickListener(v -> requestCorePermissions());
         buttons.addView(permissionButton, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -81,7 +84,7 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView info = new TextView(this);
-        info.setText("SMS/MMS : historique du téléphone. RCS : les messages accessibles via les notifications Google Messages sont ajoutés localement.");
+        info.setText("Les numéros sont remplacés par le nom enregistré dans tes contacts quand il existe. SMS/MMS : historique du téléphone. RCS : notifications Google Messages capturées localement.");
         info.setTextSize(12);
         info.setPadding(0, dp(4), 0, dp(8));
         root.addView(info);
@@ -94,11 +97,11 @@ public class MainActivity extends Activity {
 
         setContentView(root);
 
-        if (checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) {
+        if (hasSmsPermission() && hasContactsPermission()) {
             loadAllMessages();
         } else {
-            status.setText("Autorise l’accès aux SMS/MMS pour charger l’historique du téléphone.");
-            requestSmsPermission();
+            status.setText("Autorise l’accès aux SMS/MMS et aux contacts pour afficher les noms.");
+            requestCorePermissions();
         }
         updateRcsButton();
     }
@@ -107,23 +110,32 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         updateRcsButton();
-        if (checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) {
+        if (hasSmsPermission()) {
             loadAllMessages();
         }
     }
 
-    private void requestSmsPermission() {
-        requestPermissions(new String[]{Manifest.permission.READ_SMS}, REQ_SMS);
+    private boolean hasSmsPermission() {
+        return checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private boolean hasContactsPermission() {
+        return checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestCorePermissions() {
+        requestPermissions(new String[]{Manifest.permission.READ_SMS, Manifest.permission.READ_CONTACTS}, REQ_PERMISSIONS);
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQ_SMS && grantResults.length > 0
-                && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            loadAllMessages();
-        } else if (requestCode == REQ_SMS) {
-            status.setText("Accès SMS/MMS refusé. Appuie sur « Autoriser SMS/MMS » puis accepte.");
+        if (requestCode == REQ_PERMISSIONS) {
+            if (hasSmsPermission()) {
+                loadAllMessages();
+            } else {
+                status.setText("L’accès aux SMS/MMS est nécessaire.");
+            }
         }
     }
 
@@ -139,16 +151,24 @@ public class MainActivity extends Activity {
     }
 
     private void loadAllMessages() {
-        if (checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
+        if (!hasSmsPermission()) {
             status.setText("L’autorisation SMS/MMS est nécessaire.");
             return;
         }
 
-        permissionButton.setEnabled(false);
-        permissionButton.setText("SMS/MMS autorisés");
-        status.setText("Chargement de tous les messages disponibles…");
+        permissionButton.setEnabled(hasContactsPermission());
+        permissionButton.setText(hasContactsPermission() ? "SMS + CONTACTS AUTORISÉS" : "AUTORISER LES CONTACTS");
+        status.setText("Chargement de tous les messages et des noms de contacts…");
 
         new Thread(() -> {
+            if (hasContactsPermission()) {
+                loadContactNames();
+            } else {
+                synchronized (contactNames) {
+                    contactNames.clear();
+                }
+            }
+
             ArrayList<MessageItem> loaded = new ArrayList<>();
             loadSms(loaded);
             loadMms(loaded);
@@ -167,15 +187,86 @@ public class MainActivity extends Activity {
             final int finalSmsCount = smsCount;
             final int finalMmsCount = mmsCount;
             final int finalRcsCount = rcsCount;
+            final int finalContactCount;
+            synchronized (contactNames) {
+                finalContactCount = contactNames.size();
+            }
 
             runOnUiThread(() -> {
                 messages.clear();
                 messages.addAll(loaded);
                 adapter.notifyDataSetChanged();
+                String contactInfo = hasContactsPermission()
+                        ? " • contacts chargés"
+                        : " • CONTACTS NON AUTORISÉS";
                 status.setText(messages.size() + " messages • " + finalSmsCount + " SMS • "
-                        + finalMmsCount + " MMS • " + finalRcsCount + " RCS capturés");
+                        + finalMmsCount + " MMS • " + finalRcsCount + " RCS capturés" + contactInfo);
             });
         }).start();
+    }
+
+    private void loadContactNames() {
+        HashMap<String, String> loaded = new HashMap<>();
+        Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(
+                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                    new String[]{
+                            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                            ContactsContract.CommonDataKinds.Phone.NUMBER,
+                            ContactsContract.CommonDataKinds.Phone.NORMALIZED_NUMBER
+                    },
+                    null, null, null);
+            if (cursor == null) return;
+
+            int nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME);
+            int numberIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER);
+            int normalizedIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NORMALIZED_NUMBER);
+
+            while (cursor.moveToNext()) {
+                String name = nameIndex >= 0 ? cursor.getString(nameIndex) : null;
+                String number = numberIndex >= 0 ? cursor.getString(numberIndex) : null;
+                String normalized = normalizedIndex >= 0 ? cursor.getString(normalizedIndex) : null;
+                if (name == null || name.trim().isEmpty()) continue;
+
+                String key1 = canonicalPhone(number);
+                String key2 = canonicalPhone(normalized);
+                if (!key1.isEmpty()) loaded.put(key1, name.trim());
+                if (!key2.isEmpty()) loaded.put(key2, name.trim());
+            }
+        } catch (Throwable ignored) {
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+
+        synchronized (contactNames) {
+            contactNames.clear();
+            contactNames.putAll(loaded);
+        }
+    }
+
+    private String resolveContactName(String address) {
+        String key = canonicalPhone(address);
+        if (key.length() < 6) return null;
+        synchronized (contactNames) {
+            return contactNames.get(key);
+        }
+    }
+
+    private String canonicalPhone(String value) {
+        if (value == null) return "";
+        StringBuilder digits = new StringBuilder();
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (Character.isDigit(c)) digits.append(c);
+        }
+        String d = digits.toString();
+        if (d.startsWith("0033") && d.length() >= 12) {
+            d = "0" + d.substring(4);
+        } else if (d.startsWith("33") && d.length() == 11) {
+            d = "0" + d.substring(2);
+        }
+        return d;
     }
 
     private void loadSms(List<MessageItem> out) {
@@ -391,8 +482,14 @@ public class MainActivity extends Activity {
             ViewHolder holder = (ViewHolder) convertView.getTag();
             MessageItem item = messages.get(position);
             String direction = item.direction == 2 ? "Envoyé à " : "Reçu de ";
-            holder.header.setText("[" + item.source + "] " + direction
-                    + (item.address.isEmpty() ? "contact inconnu" : item.address));
+            String contactName = resolveContactName(item.address);
+            String who;
+            if (contactName != null && !contactName.isEmpty()) {
+                who = contactName + (item.address.isEmpty() ? "" : "  (" + item.address + ")");
+            } else {
+                who = item.address.isEmpty() ? "contact inconnu" : item.address;
+            }
+            holder.header.setText("[" + item.source + "] " + direction + who);
             holder.body.setText(item.body.isEmpty() ? "(message sans texte)" : item.body);
             holder.date.setText(format.format(new Date(item.date)));
             return convertView;

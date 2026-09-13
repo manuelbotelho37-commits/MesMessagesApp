@@ -8,10 +8,12 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.ContactsContract;
+import android.provider.Settings;
 import android.provider.Telephony;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -31,8 +33,10 @@ public class ConversationListActivity extends Activity {
     private static final int REQ = 20;
     private final List<Row> rows = new ArrayList<>();
     private final Map<String,String> names = new HashMap<>();
+    private final Map<String,String> phonesByName = new HashMap<>();
     private Adapter adapter;
     private TextView status;
+    private Button rcsButton;
 
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
@@ -48,6 +52,16 @@ public class ConversationListActivity extends Activity {
         status = new TextView(this);
         status.setPadding(0, dp(8), 0, dp(8));
         root.addView(status);
+
+        rcsButton = new Button(this);
+        rcsButton.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
+        root.addView(rcsButton);
+        updateRcsButton();
+
+        TextView help = new TextView(this);
+        help.setText("Une ligne par conversation. Appuie dessus pour ouvrir la conversation et répondre dans Google Messages.");
+        help.setPadding(0, dp(4), 0, dp(8));
+        root.addView(help);
 
         ListView list = new ListView(this);
         adapter = new Adapter();
@@ -66,7 +80,14 @@ public class ConversationListActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        updateRcsButton();
         if (ok()) load();
+    }
+
+    private void updateRcsButton() {
+        String enabled = Settings.Secure.getString(getContentResolver(),"enabled_notification_listeners");
+        boolean on = enabled != null && enabled.contains(getPackageName());
+        rcsButton.setText(on ? "RCS : ACCÈS ACTIVÉ" : "ACTIVER L’ACCÈS RCS");
     }
 
     private boolean ok() {
@@ -89,19 +110,22 @@ public class ConversationListActivity extends Activity {
                 if (key.isEmpty()) key = m.address == null ? "" : m.address.toLowerCase(Locale.ROOT);
                 if (!latest.containsKey(key)) {
                     String n = names.get(key);
-                    latest.put(key,new Row(n==null || n.isEmpty()?m.address:n,m.address,m.body,m.date,m.sent,m.source));
+                    latest.put(key,new Row(n==null || n.isEmpty()?m.displayName:n,m.address,m.body,m.date,m.sent,m.source));
                 }
             }
             ArrayList<Row> r = new ArrayList<>(latest.values());
             runOnUiThread(() -> {
                 rows.clear(); rows.addAll(r); adapter.notifyDataSetChanged();
-                status.setText(rows.size()+" conversations • appuie sur une conversation pour répondre");
+                status.setText(rows.size()+" conversations • dernier message affiché pour chacune");
             });
         }).start();
     }
 
     private void open(String address) {
-        if (address==null || address.trim().isEmpty()) return;
+        if (address==null || address.trim().isEmpty()) {
+            Toast.makeText(this,"Je n’ai pas de numéro pour cette conversation",Toast.LENGTH_SHORT).show();
+            return;
+        }
         Intent i = new Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:"+Uri.encode(address.trim())));
         i.setPackage("com.google.android.apps.messaging");
         try { startActivity(i); }
@@ -112,7 +136,7 @@ public class ConversationListActivity extends Activity {
     }
 
     private void loadNames() {
-        names.clear();
+        names.clear(); phonesByName.clear();
         Cursor c=null;
         try {
             c=getContentResolver().query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
@@ -124,7 +148,10 @@ public class ConversationListActivity extends Activity {
                 String n=ni>=0?c.getString(ni):"";
                 String p=pi>=0?c.getString(pi):"";
                 String k=canon(p);
-                if(!k.isEmpty() && n!=null && !n.isEmpty()) names.put(k,n);
+                if(!k.isEmpty() && n!=null && !n.isEmpty()) {
+                    names.put(k,n);
+                    phonesByName.put(n.trim().toLowerCase(Locale.ROOT),p);
+                }
             }
         } finally { if(c!=null)c.close(); }
     }
@@ -136,7 +163,12 @@ public class ConversationListActivity extends Activity {
                     new String[]{Telephony.Sms.ADDRESS,Telephony.Sms.BODY,Telephony.Sms.DATE,Telephony.Sms.TYPE},null,null,Telephony.Sms.DATE+" DESC");
             if(c==null)return;
             int a=c.getColumnIndex(Telephony.Sms.ADDRESS), b=c.getColumnIndex(Telephony.Sms.BODY), d=c.getColumnIndex(Telephony.Sms.DATE), t=c.getColumnIndex(Telephony.Sms.TYPE);
-            while(c.moveToNext()) out.add(new Msg(c.getString(a),c.getString(b),c.getLong(d),c.getInt(t)==Telephony.Sms.MESSAGE_TYPE_SENT,"SMS"));
+            while(c.moveToNext()) {
+                String address=c.getString(a);
+                String key=canon(address);
+                String display=names.get(key);
+                out.add(new Msg(address,display==null?address:display,c.getString(b),c.getLong(d),c.getInt(t)==Telephony.Sms.MESSAGE_TYPE_SENT,"SMS"));
+            }
         } finally { if(c!=null)c.close(); }
     }
 
@@ -149,7 +181,8 @@ public class ConversationListActivity extends Activity {
             while(c.moveToNext()) {
                 String id=c.getString(i); long date=c.getLong(d); if(date<100000000000L)date*=1000L;
                 boolean sent=c.getInt(b)==2;
-                out.add(new Msg(mmsAddress(id,sent),mmsText(id),date,sent,"MMS"));
+                String address=mmsAddress(id,sent), key=canon(address), display=names.get(key);
+                out.add(new Msg(address,display==null?address:display,mmsText(id),date,sent,"MMS"));
             }
         } finally { if(c!=null)c.close(); }
     }
@@ -181,7 +214,9 @@ public class ConversationListActivity extends Activity {
         try {
             for(CapturedMessageStore.Item x:store.getAll()) {
                 String who=!x.sender.isEmpty()?x.sender:x.conversation;
-                out.add(new Msg(who,x.body,x.date,x.direction==CapturedMessageStore.DIRECTION_SENT,"RCS"));
+                String phone=phonesByName.get(who.trim().toLowerCase(Locale.ROOT));
+                String address=phone==null?who:phone;
+                out.add(new Msg(address,who,x.body,x.date,x.direction==CapturedMessageStore.DIRECTION_SENT,"RCS"));
             }
         } finally { store.close(); }
     }
@@ -196,7 +231,7 @@ public class ConversationListActivity extends Activity {
 
     private int dp(int v){return Math.round(v*getResources().getDisplayMetrics().density);}
 
-    private static class Msg { String address,body,source; long date; boolean sent; Msg(String a,String b,long d,boolean s,String src){address=a==null?"":a;body=b==null?"":b;date=d;sent=s;source=src;} }
+    private static class Msg { String address,displayName,body,source; long date; boolean sent; Msg(String a,String n,String b,long d,boolean s,String src){address=a==null?"":a;displayName=n==null||n.isEmpty()?address:n;body=b==null?"":b;date=d;sent=s;source=src;} }
     private static class Row { String name,address,body,source; long date; boolean sent; Row(String n,String a,String b,long d,boolean s,String src){name=n==null||n.isEmpty()?a:n;address=a;body=b;date=d;sent=s;source=src;} }
 
     private class Adapter extends BaseAdapter {

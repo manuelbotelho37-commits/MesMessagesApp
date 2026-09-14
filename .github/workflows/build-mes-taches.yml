@@ -25,6 +25,7 @@ jobs:
           python3 mes-taches/tools/apply_mail_sms_patch.py
           python3 mes-taches/tools/apply_mail_sms_compile_fix.py
           python3 mes-taches/tools/apply_menu_order_patch.py
+          python3 mes-taches/tools/apply_reorder_scroll_fix.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

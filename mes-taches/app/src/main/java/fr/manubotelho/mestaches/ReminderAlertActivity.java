@@ -37,6 +37,11 @@ public final class ReminderAlertActivity extends Activity {
         build();
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        if (store!=null) build();
+    }
+
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
@@ -46,10 +51,8 @@ public final class ReminderAlertActivity extends Activity {
     private void configureWindow() {
         Window window=getWindow();
         window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-        WindowManager.LayoutParams attrs=window.getAttributes();
-        attrs.dimAmount=0.18f;
-        window.setAttributes(attrs);
+        window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (Build.VERSION.SDK_INT>=27) {
             setShowWhenLocked(true);
             setTurnScreenOn(true);
@@ -57,6 +60,7 @@ public final class ReminderAlertActivity extends Activity {
             window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
                     | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
         }
+        setFinishOnTouchOutside(false);
     }
 
     private void build() {
@@ -77,7 +81,7 @@ public final class ReminderAlertActivity extends Activity {
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(14),dp(12),dp(14),dp(12));
         panel.setBackground(roundRect(WHITE,18,BORDER));
-        panel.setElevation(dp(10));
+        panel.setElevation(dp(12));
 
         TextView header=text("Tâches à faire  •  "+pending.size(),18,INK,true);
         header.setPadding(dp(4),dp(2),dp(4),dp(8));
@@ -90,7 +94,7 @@ public final class ReminderAlertActivity extends Activity {
         for (TaskStore.Task task:pending) rows.addView(taskRow(task));
         scroll.addView(rows,new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
         LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
-        int maxHeight=(int)(getResources().getDisplayMetrics().heightPixels*0.62f);
+        int maxHeight=(int)(getResources().getDisplayMetrics().heightPixels*0.48f);
         scroll.setLayoutParams(sp);
         scroll.setClipToPadding(false);
         scroll.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
@@ -102,14 +106,14 @@ public final class ReminderAlertActivity extends Activity {
         });
         panel.addView(scroll);
 
-        Button close=button("Fermer pour l’instant",WHITE,MUTED,46);
+        Button close=button("Fermer pour l’instant",WHITE,MUTED,44);
         LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
         cp.topMargin=dp(8);
         panel.addView(close,cp);
         close.setOnClickListener(v->finish());
 
         FrameLayout.LayoutParams pp=new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT,Gravity.TOP|Gravity.CENTER_HORIZONTAL);
-        pp.setMargins(dp(14),dp(44),dp(14),dp(14));
+        pp.setMargins(dp(18),dp(34),dp(18),dp(18));
         root.addView(panel,pp);
         setContentView(root);
     }
@@ -150,8 +154,9 @@ public final class ReminderAlertActivity extends Activity {
         });
 
         row.setOnClickListener(v->{
-            startActivity(new Intent(this,MainActivity.class)
-                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));
+            startActivity(new Intent(this,TaskDetailActivity.class)
+                    .putExtra(TaskDetailActivity.EXTRA_TASK_ID,task.id)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP));
             finish();
         });
         return row;

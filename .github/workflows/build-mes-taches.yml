@@ -34,6 +34,7 @@ jobs:
           python3 mes-taches/tools/apply_compact_lock_overlay.py
           python3 mes-taches/tools/apply_sms_clipboard_focus_fix.py
           python3 mes-taches/tools/apply_foreground_static_alert.py
+          python3 mes-taches/tools/apply_pause_reminder_patch.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

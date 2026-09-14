@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -39,16 +41,19 @@ import java.util.List;
 import java.util.Locale;
 
 public final class MainActivity extends Activity {
-    static final int ADD=1001, TODO=1002, DONE=1003, TITLE=1004, DATE=1005, TIME=1006;
-    private static final int BLUE=0xff174ccb, INK=0xff152442, MUTED=0xff526078,
-            BG=0xfff4f7fc, BORDER=0xffdce3ef, RED=0xffa53223, WHITE=Color.WHITE;
+    static final int ADD=1001, TODO=1002, DONE=1003, TITLE=1004, DATE=1005, TIME=1006, COLORS=1007;
+    private static final int BLUE=0xff174ccb, YELLOW=0xfff2c94c, ORANGE=0xfff28c28,
+            INK=0xff152442, MUTED=0xff526078, BG=0xfff4f7fc, BORDER=0xffdce3ef,
+            RED=0xffa53223, WHITE=Color.WHITE;
     private static final Locale FR=Locale.FRANCE;
+    private static final String PREFS="appearance", PREF_TODO="todoColor", PREF_DONE="doneColor", PREF_ADD="addColor";
     private TaskStore store;
+    private SharedPreferences prefs;
     private boolean showingDone=false;
     private LinearLayout list;
     private ScrollView scroll;
     private TextView summary, today;
-    private Button todoTab, doneTab;
+    private Button todoTab, doneTab, addButton;
     private AlertDialog editorDialog;
     private EditText titleField;
     private RadioButton appointmentField;
@@ -62,6 +67,7 @@ public final class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         store=new TaskStore(this);
+        prefs=getSharedPreferences(PREFS,MODE_PRIVATE);
         if (state!=null) showingDone=state.getBoolean("showingDone",false);
         makeScreen();
         refresh();
@@ -100,16 +106,20 @@ public final class MainActivity extends Activity {
         setContentView(outer);
         outer.requestApplyInsets();
 
-        LinearLayout heading=column(); heading.setPadding(dp(22),dp(20),dp(22),dp(10));
-        today=text("",16,MUTED,false);
-        heading.addView(today);
-        TextView name=text("Mes tâches",32,INK,true);
+        LinearLayout heading=column(); heading.setPadding(dp(22),dp(20),dp(22),dp(8));
+        today=text("",16,MUTED,false); heading.addView(today);
+        TextView name=text("Mes tâches Manu",32,INK,true);
         name.setPadding(0,dp(6),0,dp(4)); heading.addView(name);
         summary=text("",16,MUTED,false); heading.addView(summary);
+        Button colors=button("🎨  Couleurs",false); colors.setId(COLORS);
+        colors.setMinHeight(dp(46)); colors.setMinimumHeight(dp(46));
+        LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT);
+        cp.topMargin=dp(10); heading.addView(colors,cp);
+        colors.setOnClickListener(v->openColorSettings());
         body.addView(heading);
 
         LinearLayout tabs=new LinearLayout(this);
-        tabs.setPadding(dp(20),dp(10),dp(20),dp(12));
+        tabs.setPadding(dp(20),dp(8),dp(20),dp(12));
         todoTab=button("À faire",false); todoTab.setId(TODO);
         doneTab=button("Terminées",false); doneTab.setId(DONE);
         LinearLayout.LayoutParams left=new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1);
@@ -126,12 +136,13 @@ public final class MainActivity extends Activity {
         body.addView(scroll,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,0,1));
 
         LinearLayout footer=column(); footer.setPadding(dp(20),dp(8),dp(20),dp(10));
-        Button add=button("+  Ajouter",true); add.setId(ADD); add.setTextSize(20);
-        add.setOnClickListener(v->openEditor(null,null));
-        footer.addView(add,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
+        addButton=button("+  Ajouter",true); addButton.setId(ADD); addButton.setTextSize(20);
+        addButton.setOnClickListener(v->openEditor(null,null));
+        footer.addView(addButton,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
         TextView saved=text("Enregistré sur ce téléphone",14,MUTED,false);
         saved.setGravity(Gravity.CENTER); saved.setPadding(0,dp(8),0,0);
         footer.addView(saved); body.addView(footer);
+        applyMainColors();
     }
 
     private void refresh() {
@@ -146,12 +157,12 @@ public final class MainActivity extends Activity {
             summary.setText(pending.isEmpty()?"Tout est à jour":pending.size()+" "+(pending.size()>1?"choses à faire":"chose à faire"));
             todoTab.setText("À faire ("+pending.size()+")");
             doneTab.setText("Terminées ("+completed.size()+")");
-            tabStyle(todoTab,!showingDone); tabStyle(doneTab,showingDone);
+            applyMainColors();
             list.removeAllViews(); list.setGravity(Gravity.TOP);
             List<TaskStore.Task> tasks=showingDone?completed:pending;
             if (tasks.isEmpty()) {
                 list.setGravity(Gravity.CENTER);
-                TextView tick=text("✓",48,BLUE,true); tick.setGravity(Gravity.CENTER);
+                TextView tick=text("✓",48,showingDone?doneColor():todoColor(),true); tick.setGravity(Gravity.CENTER);
                 list.addView(tick);
                 TextView empty=text(showingDone?"Rien de terminé":"Rien de prévu",23,INK,true);
                 empty.setGravity(Gravity.CENTER); empty.setPadding(0,dp(12),0,dp(8)); list.addView(empty);
@@ -186,7 +197,7 @@ public final class MainActivity extends Activity {
         row.setPadding(dp(4),dp(6),dp(8),dp(6));
         CheckBox check=new CheckBox(this); check.setChecked(task.done);
         check.setTag("check:"+task.id);
-        check.setButtonTintList(ColorStateList.valueOf(BLUE));
+        check.setButtonTintList(ColorStateList.valueOf(task.done?doneColor():todoColor()));
         check.setContentDescription((task.done?"Remettre à faire : ":"Terminer : ")+task.title);
         row.addView(check,new LinearLayout.LayoutParams(dp(56),dp(64)));
         check.setOnCheckedChangeListener((button,checked)->{
@@ -194,16 +205,24 @@ public final class MainActivity extends Activity {
             catch (RuntimeException ex) { refresh(); error(); }
         });
 
-        LinearLayout details=column(); details.setPadding(0,dp(10),dp(10),dp(10));
+        LinearLayout details=column(); details.setPadding(0,dp(10),dp(8),dp(10));
         details.setTag("task:"+task.id);
         TextView label=text(task.title,19,task.done?MUTED:INK,true);
         if (task.done) label.setPaintFlags(label.getPaintFlags()|android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
         details.addView(label);
-        TextView time=text(format(task.dueAt,"dd/MM/yyyy")+"  ·  "+format(task.dueAt,"HH:mm"),17,BLUE,true);
+        int accent=task.done?doneColor():todoColor();
+        TextView time=text(format(task.dueAt,"dd/MM/yyyy")+"  ·  "+format(task.dueAt,"HH:mm"),17,accent,true);
         time.setPadding(0,dp(6),0,dp(4)); details.addView(time);
         boolean overdue=!task.done && task.dueAt<System.currentTimeMillis();
+        int attachmentCount=0;
+        try { attachmentCount=store.listAttachments(task.id).size(); } catch (RuntimeException ignored) {}
         TextView kind=text((task.appointment?"Rendez-vous":"Tâche")+(overdue?" · En retard":""),15,overdue?RED:MUTED,false);
         details.addView(kind);
+        Button dossier=button(attachmentCount==0?"📎  Dossier":"📎  Dossier ("+attachmentCount+")",false);
+        dossier.setTextSize(15); dossier.setMinHeight(dp(44)); dossier.setMinimumHeight(dp(44));
+        LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT);
+        dp.topMargin=dp(7); details.addView(dossier,dp);
+        dossier.setOnClickListener(v->startActivity(new Intent(this,TaskDetailActivity.class).putExtra(TaskDetailActivity.EXTRA_TASK_ID,task.id)));
         details.setBackground(new RippleDrawable(ColorStateList.valueOf(0x16174ccb),null,shape(WHITE,10,WHITE)));
         details.setClickable(true); details.setFocusable(true);
         details.setContentDescription("Modifier : "+task.title+". "+format(task.dueAt,"d MMMM yyyy 'à' HH:mm")+". "+kind.getText());
@@ -219,7 +238,10 @@ public final class MainActivity extends Activity {
         if (task!=null) draftDue.setTimeInMillis(task.dueAt);
         else {
             draftDue.set(Calendar.SECOND,0); draftDue.set(Calendar.MILLISECOND,0);
-            draftDue.add(Calendar.MINUTE,30-draftDue.get(Calendar.MINUTE)%30);
+            int minute=draftDue.get(Calendar.MINUTE);
+            int add=(30-minute%30)%30;
+            if (add==0) add=30;
+            draftDue.add(Calendar.MINUTE,add);
         }
         if (saved!=null) draftDue.setTimeInMillis(saved.getLong("draftDue",draftDue.getTimeInMillis()));
         LinearLayout form=column(); form.setPadding(dp(22),dp(10),dp(22),dp(6));
@@ -276,9 +298,11 @@ public final class MainActivity extends Activity {
             picker.show();
         });
         if (task!=null) {
+            TextView hint=text("Pour joindre un mail, une photo, un fichier, un lien ou une note, utilise le bouton « Dossier » sur la tâche.",14,MUTED,false);
+            hint.setPadding(0,dp(18),0,0); form.addView(hint);
             Button delete=button("Supprimer",false); delete.setTextColor(RED);
             LinearLayout.LayoutParams deleteParams=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
-            deleteParams.topMargin=dp(20); form.addView(delete,deleteParams);
+            deleteParams.topMargin=dp(18); form.addView(delete,deleteParams);
             delete.setOnClickListener(v->new AlertDialog.Builder(this)
                     .setTitle("Supprimer cette entrée ?").setMessage(task.title)
                     .setNegativeButton("Annuler",null)
@@ -303,8 +327,9 @@ public final class MainActivity extends Activity {
                 if (title.isEmpty()) { titleField.setError("Écris ce que tu dois faire."); titleField.requestFocus(); return; }
                 draftDue.set(Calendar.SECOND,0); draftDue.set(Calendar.MILLISECOND,0);
                 try {
-                    store.save(editingId,title,draftDue.getTimeInMillis(),appointmentField.isChecked());
+                    long savedId=store.save(editingId,title,draftDue.getTimeInMillis(),appointmentField.isChecked());
                     if (editingId==0) showingDone=false;
+                    editingId=savedId;
                     hideKeyboard(); editorDialog.dismiss(); refresh();
                     Toast.makeText(this,"Enregistré",Toast.LENGTH_SHORT).show();
                 } catch (RuntimeException ex) { error(); }
@@ -313,6 +338,54 @@ public final class MainActivity extends Activity {
                 editorDialog.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         });
         editorDialog.show();
+    }
+
+    private void openColorSettings() {
+        String[] options={"À faire  ·  "+colorName(todoColor()),"Terminées  ·  "+colorName(doneColor()),"+ Ajouter  ·  "+colorName(addColor()),"Réinitialiser les couleurs"};
+        new AlertDialog.Builder(this).setTitle("Couleurs de l’application").setItems(options,(d,which)->{
+            if (which==3) {
+                prefs.edit().remove(PREF_TODO).remove(PREF_DONE).remove(PREF_ADD).apply(); refresh(); return;
+            }
+            String key=which==0?PREF_TODO:which==1?PREF_DONE:PREF_ADD;
+            String title=which==0?"Couleur de À faire":which==1?"Couleur de Terminées":"Couleur de + Ajouter";
+            openColorPicker(title,key);
+        }).show();
+    }
+
+    private void openColorPicker(String title,String key) {
+        String[] names={"Bleu","Jaune","Orange","Vert","Violet","Rouge","Rose","Turquoise","Gris foncé"};
+        int[] colors={0xff174ccb,0xfff2c94c,0xfff28c28,0xff2e9d52,0xff7b4cc9,0xffd04444,0xffd94f8a,0xff159aa6,0xff44546a};
+        new AlertDialog.Builder(this).setTitle(title).setItems(names,(d,which)->{
+            prefs.edit().putInt(key,colors[which]).apply(); refresh();
+        }).show();
+    }
+
+    private void applyMainColors() {
+        if (todoTab==null || doneTab==null || addButton==null) return;
+        styleTab(todoTab,todoColor(),!showingDone);
+        styleTab(doneTab,doneColor(),showingDone);
+        int add=addColor();
+        addButton.setTextColor(contrastText(add));
+        addButton.setBackground(new RippleDrawable(ColorStateList.valueOf(0x33ffffff),shape(add,12,add),null));
+    }
+    private void styleTab(Button b,int color,boolean active) {
+        b.setSelected(active);
+        b.setTextColor(active?contrastText(color):color);
+        b.setBackground(new RippleDrawable(ColorStateList.valueOf(0x22174ccb),shape(active?color:WHITE,12,color),null));
+    }
+    private int contrastText(int color) {
+        double luminance=(0.299*Color.red(color)+0.587*Color.green(color)+0.114*Color.blue(color));
+        return luminance>165?INK:WHITE;
+    }
+    private int todoColor() { return prefs==null?BLUE:prefs.getInt(PREF_TODO,BLUE); }
+    private int doneColor() { return prefs==null?YELLOW:prefs.getInt(PREF_DONE,YELLOW); }
+    private int addColor() { return prefs==null?ORANGE:prefs.getInt(PREF_ADD,ORANGE); }
+    private String colorName(int color) {
+        if (color==0xff174ccb) return "Bleu"; if (color==0xfff2c94c) return "Jaune";
+        if (color==0xfff28c28) return "Orange"; if (color==0xff2e9d52) return "Vert";
+        if (color==0xff7b4cc9) return "Violet"; if (color==0xffd04444) return "Rouge";
+        if (color==0xffd94f8a) return "Rose"; if (color==0xff159aa6) return "Turquoise";
+        if (color==0xff44546a) return "Gris foncé"; return "Personnalisée";
     }
 
     @Override protected void onSaveInstanceState(Bundle out) {
@@ -363,14 +436,11 @@ public final class MainActivity extends Activity {
         b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));
         b.setMinHeight(dp(54)); b.setMinimumHeight(dp(54)); b.setMinWidth(0); b.setMinimumWidth(0);
         b.setPadding(dp(14),dp(12),dp(14),dp(12));
-        b.setTextColor(primary?WHITE:INK);
+        int fill=primary?addColor():WHITE;
+        b.setTextColor(primary?contrastText(fill):INK);
         b.setBackground(new RippleDrawable(ColorStateList.valueOf(primary?0x33ffffff:0x16174ccb),
-                shape(primary?BLUE:WHITE,12,primary?BLUE:BORDER),null));
+                shape(fill,12,primary?fill:BORDER),null));
         b.setStateListAnimator(null); return b;
-    }
-    private void tabStyle(Button b,boolean active) {
-        b.setSelected(active); b.setTextColor(active?WHITE:MUTED);
-        b.setBackground(new RippleDrawable(ColorStateList.valueOf(0x22174ccb),shape(active?INK:WHITE,12,active?INK:BORDER),null));
     }
     private GradientDrawable shape(int fill,int radius,int border) {
         GradientDrawable d=new GradientDrawable(); d.setColor(fill); d.setCornerRadius(dp(radius));

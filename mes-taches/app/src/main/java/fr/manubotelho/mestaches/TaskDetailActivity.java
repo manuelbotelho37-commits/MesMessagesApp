@@ -206,9 +206,19 @@ public final class TaskDetailActivity extends Activity {
     }
 
     private void openInternet() {
+        new AlertDialog.Builder(this)
+                .setTitle("Internet / article")
+                .setMessage("Le plus simple : ouvre Internet, va sur la page voulue puis fais ⋮ → Partager → Mes tâches Manu. Tu n’as pas besoin de copier le lien.")
+                .setNegativeButton("Annuler",null)
+                .setNeutralButton("Coller un lien",(d,w)->askText("Lien Internet","https://exemple.fr","link",false))
+                .setPositiveButton("Ouvrir Internet",(d,w)->launchInternet())
+                .show();
+    }
+
+    private void launchInternet() {
         try {
             startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://www.google.com")));
-            Toast.makeText(this,"Depuis le navigateur, utilise Partager → Mes tâches Manu pour rattacher un article.",Toast.LENGTH_LONG).show();
+            Toast.makeText(this,"Sur la page : ⋮ → Partager → Mes tâches Manu.",Toast.LENGTH_LONG).show();
         } catch (ActivityNotFoundException ex) {
             Toast.makeText(this,"Aucun navigateur Internet n’est disponible.",Toast.LENGTH_LONG).show();
         }

@@ -35,6 +35,7 @@ jobs:
           python3 mes-taches/tools/apply_sms_clipboard_focus_fix.py
           python3 mes-taches/tools/apply_foreground_static_alert.py
           python3 mes-taches/tools/apply_pause_reminder_patch.py
+          python3 mes-taches/tools/apply_voice_dictation_patch.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -102,3 +103,4 @@ jobs:
             gh release upload "$TASKS_TAG" "$RUNNER_TEMP/MesTaches.apk" --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$TASKS_TAG" "$RUNNER_TEMP/MesTaches.apk" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Mes tâches 1.0" --notes "Application Android : tâches et rendez-vous, date, heure, cases à cocher et sauvegarde sur le téléphone." --prerelease --latest=false
+          fi

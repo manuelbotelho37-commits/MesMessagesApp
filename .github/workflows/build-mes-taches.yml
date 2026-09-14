@@ -27,6 +27,7 @@ jobs:
           python3 mes-taches/tools/apply_sms_contact_fix.py
           python3 mes-taches/tools/apply_menu_order_patch.py
           python3 mes-taches/tools/apply_reorder_scroll_fix.py
+          python3 mes-taches/tools/apply_direct_mail_patch.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -57,6 +58,9 @@ jobs:
             keytool -genkeypair -noprompt -keystore "$TASKS_KEY_DIR/mes-taches.jks" -storepass android -keypass android -alias mes-taches -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Mes Taches"
           fi
           echo "TASKS_KEYSTORE=$TASKS_KEY_DIR/mes-taches.jks" >> "$GITHUB_ENV"
+      - name: Signing fingerprint for Gmail setup
+        shell: bash
+        run: keytool -list -v -keystore "$TASKS_KEYSTORE" -storepass android -alias mes-taches | grep -E "SHA1:|SHA-1:" || true
       - name: Preserve private signing key
         uses: actions/upload-artifact@v4
         with:

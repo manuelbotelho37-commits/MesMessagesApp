@@ -1,127 +1,196 @@
 package fr.manubotelho.mestaches;
 
 import android.app.Activity;
-import android.app.NotificationManager;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public final class ReminderAlertActivity extends Activity {
-    private static final int BG=0xfff4f7fc, INK=0xff152442, MUTED=0xff526078,
-            ORANGE=0xfff28c28, BLUE=0xff174ccb, WHITE=Color.WHITE;
-    private long taskId;
+    private static final int INK=0xff152442, MUTED=0xff526078, ORANGE=0xfff28c28,
+            BLUE=0xff174ccb, WHITE=Color.WHITE, BORDER=0xffdce3ef, ROW=0xfff7f9fd;
     private TaskStore store;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        if (Build.VERSION.SDK_INT >= 27) {
-            setShowWhenLocked(true);
-            setTurnScreenOn(true);
-        } else {
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
-                    | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
-        }
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        taskId=getIntent().getLongExtra(ReminderScheduler.EXTRA_TASK_ID,0);
-        if (taskId==0) { finish(); return; }
+        configureWindow();
         store=new TaskStore(this);
-        TaskStore.Task task=store.get(taskId);
-        if (task==null || task.done) { finish(); return; }
-        build(task);
+        build();
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        taskId=intent.getLongExtra(ReminderScheduler.EXTRA_TASK_ID,0);
-        TaskStore.Task task=store==null?null:store.get(taskId);
-        if (task==null || task.done) { finish(); return; }
-        build(task);
+        build();
     }
 
-    private void build(TaskStore.Task task) {
-        LinearLayout root=new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.setPadding(dp(28),dp(34),dp(28),dp(28));
-        root.setBackgroundColor(BG);
+    private void configureWindow() {
+        Window window=getWindow();
+        window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        WindowManager.LayoutParams attrs=window.getAttributes();
+        attrs.dimAmount=0.18f;
+        window.setAttributes(attrs);
+        if (Build.VERSION.SDK_INT>=27) {
+            setShowWhenLocked(true);
+            setTurnScreenOn(true);
+        } else {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                    | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+        }
+    }
 
-        TextView badge=text(task.appointment?"RENDEZ-VOUS":"TÂCHE À FAIRE",16,ORANGE,true);
-        badge.setGravity(Gravity.CENTER);
-        root.addView(badge,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
+    private void build() {
+        if (store==null) return;
+        List<TaskStore.Task> pending=new ArrayList<>();
+        long now=System.currentTimeMillis();
+        try {
+            for (TaskStore.Task task:store.list(false)) {
+                if (!task.done && task.dueAt<=now) pending.add(task);
+            }
+        } catch (RuntimeException ignored) {}
+        if (pending.isEmpty()) { finish(); return; }
 
-        TextView title=text(task.title,32,INK,true);
-        title.setGravity(Gravity.CENTER);
-        title.setPadding(0,dp(26),0,dp(18));
-        root.addView(title,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
+        FrameLayout root=new FrameLayout(this);
+        root.setBackgroundColor(Color.TRANSPARENT);
 
-        String when=new SimpleDateFormat("EEEE d MMMM 'à' HH:mm",Locale.FRANCE).format(new java.util.Date(task.dueAt));
-        TextView date=text(when,19,BLUE,true);
-        date.setGravity(Gravity.CENTER);
-        root.addView(date,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout panel=new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(14),dp(12),dp(14),dp(12));
+        panel.setBackground(roundRect(WHITE,18,BORDER));
+        panel.setElevation(dp(10));
 
-        TextView help=text("Ce rappel restera dans tes notifications tant que la tâche n’est pas terminée.",16,MUTED,false);
-        help.setGravity(Gravity.CENTER);
-        help.setPadding(dp(8),dp(26),dp(8),dp(26));
-        root.addView(help,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
+        TextView header=text("Tâches à faire  •  "+pending.size(),18,INK,true);
+        header.setPadding(dp(4),dp(2),dp(4),dp(8));
+        panel.addView(header,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        Button done=button("✓  Marquer comme terminée",ORANGE,WHITE);
+        ScrollView scroll=new ScrollView(this);
+        scroll.setFillViewport(false);
+        LinearLayout rows=new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        for (TaskStore.Task task:pending) rows.addView(taskRow(task));
+        scroll.addView(rows,new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
+        int maxHeight=(int)(getResources().getDisplayMetrics().heightPixels*0.62f);
+        scroll.setLayoutParams(sp);
+        scroll.setClipToPadding(false);
+        scroll.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+            if (scroll.getHeight()>maxHeight) {
+                ViewGroup.LayoutParams p=scroll.getLayoutParams();
+                p.height=maxHeight;
+                scroll.setLayoutParams(p);
+            }
+        });
+        panel.addView(scroll);
+
+        Button close=button("Fermer pour l’instant",WHITE,MUTED,46);
+        LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
+        cp.topMargin=dp(8);
+        panel.addView(close,cp);
+        close.setOnClickListener(v->finish());
+
+        FrameLayout.LayoutParams pp=new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT,Gravity.TOP|Gravity.CENTER_HORIZONTAL);
+        pp.setMargins(dp(14),dp(44),dp(14),dp(14));
+        root.addView(panel,pp);
+        setContentView(root);
+    }
+
+    private View taskRow(TaskStore.Task task) {
+        LinearLayout row=new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(12),dp(9),dp(8),dp(9));
+        row.setBackground(roundRect(ROW,14,BORDER));
+        LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
+        rp.bottomMargin=dp(7);
+        row.setLayoutParams(rp);
+
+        LinearLayout info=new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        TextView title=text(task.title,16,INK,true);
+        title.setMaxLines(2);
+        info.addView(title);
+        String when=new SimpleDateFormat("HH:mm",Locale.FRANCE).format(new java.util.Date(task.dueAt));
+        TextView date=text((task.appointment?"Rendez-vous":"Tâche")+" · "+when,13,BLUE,true);
+        date.setPadding(0,dp(2),0,0);
+        info.addView(date);
+        row.addView(info,new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f));
+
+        Button done=button("✓",ORANGE,WHITE,44);
+        LinearLayout.LayoutParams dpv=new LinearLayout.LayoutParams(dp(52),dp(44));
+        dpv.setMarginStart(dp(8));
+        row.addView(done,dpv);
+        done.setContentDescription("Marquer "+task.title+" comme terminée");
         done.setOnClickListener(v->{
             try {
-                store.setDone(taskId,true);
-                ReminderScheduler.cancelNotification(this,taskId);
+                store.setDone(task.id,true);
+                ReminderScheduler.cancel(this,task.id);
                 Toast.makeText(this,"Tâche terminée",Toast.LENGTH_SHORT).show();
             } catch (RuntimeException ignored) {}
-            finish();
+            build();
         });
-        root.addView(done,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        Button open=button("Ouvrir Mes tâches Manu",WHITE,INK);
-        LinearLayout.LayoutParams op=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
-        op.topMargin=dp(12);
-        root.addView(open,op);
-        open.setOnClickListener(v->{
+        row.setOnClickListener(v->{
             startActivity(new Intent(this,MainActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));
             finish();
         });
-
-        Button later=button("Fermer pour l’instant",WHITE,MUTED);
-        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.topMargin=dp(8);
-        root.addView(later,lp);
-        later.setOnClickListener(v->finish());
-        setContentView(root);
+        return row;
     }
 
-    private Button button(String label,int fill,int textColor) {
-        Button b=new Button(this); b.setText(label); b.setTextSize(18); b.setAllCaps(false);
+    private Button button(String label,int fill,int textColor,int minHeight) {
+        Button b=new Button(this);
+        b.setText(label);
+        b.setTextSize(15);
+        b.setAllCaps(false);
         b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));
-        b.setTextColor(textColor); b.setMinHeight(dp(58));
-        GradientDrawable shape=new GradientDrawable(); shape.setColor(fill); shape.setCornerRadius(dp(14));
-        shape.setStroke(dp(1),fill==WHITE?0xffdce3ef:fill);
+        b.setTextColor(textColor);
+        b.setMinHeight(dp(minHeight));
+        GradientDrawable shape=roundRect(fill,14,fill==WHITE?BORDER:fill);
         b.setBackground(new RippleDrawable(android.content.res.ColorStateList.valueOf(0x22000000),shape,null));
         return b;
     }
 
     private TextView text(String value,float size,int color,boolean bold) {
-        TextView t=new TextView(this); t.setText(value); t.setTextSize(size); t.setTextColor(color);
+        TextView t=new TextView(this);
+        t.setText(value);
+        t.setTextSize(size);
+        t.setTextColor(color);
         t.setTypeface(Typeface.create("sans-serif",bold?Typeface.BOLD:Typeface.NORMAL));
         return t;
     }
+
+    private GradientDrawable roundRect(int fill,float radius,int stroke) {
+        GradientDrawable g=new GradientDrawable();
+        g.setColor(fill);
+        g.setCornerRadius(dp(radius));
+        g.setStroke(dp(1),stroke);
+        return g;
+    }
+
     private int dp(float v) { return Math.round(v*getResources().getDisplayMetrics().density); }
-    @Override protected void onDestroy() { if (store!=null) store.close(); super.onDestroy(); }
+
+    @Override protected void onDestroy() {
+        if (store!=null) store.close();
+        super.onDestroy();
+    }
 }

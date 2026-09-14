@@ -30,6 +30,7 @@ jobs:
           python3 mes-taches/tools/apply_direct_mail_patch.py
           python3 mes-taches/tools/apply_notification_sms_bridge_fix.py
           python3 mes-taches/tools/apply_sms_clipboard_import.py
+          python3 mes-taches/tools/apply_lock_screen_notification_fix.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

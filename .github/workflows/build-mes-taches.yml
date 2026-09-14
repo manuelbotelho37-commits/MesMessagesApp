@@ -1,0 +1,83 @@
+name: Mes tâches Android
+on:
+  push:
+    branches: [mes-taches]
+    paths: ['mes-taches/**', '.github/workflows/build-mes-taches.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: mes-taches-build
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Android SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Recover or create app signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          TASKS_KEY_DIR="$RUNNER_TEMP/mes-taches-signing"
+          mkdir -p "$TASKS_KEY_DIR"
+          TASKS_ARTIFACT_ID=$(gh api --method GET "repos/$GITHUB_REPOSITORY/actions/artifacts" -f name=MesTaches-signing-key-v1 -f per_page=1 --jq '.artifacts[] | select(.expired == false) | .id' | head -n 1)
+          if [ -n "$TASKS_ARTIFACT_ID" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$TASKS_ARTIFACT_ID/zip" > "$RUNNER_TEMP/tasks-key.zip"
+            unzip -q "$RUNNER_TEMP/tasks-key.zip" -d "$TASKS_KEY_DIR"
+          else
+            if gh release view mes-taches-v1.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "Previous signing key unavailable. Restore the private key before building an update."
+              exit 1
+            fi
+            keytool -genkeypair -noprompt -keystore "$TASKS_KEY_DIR/mes-taches.jks" -storepass android -keypass android -alias mes-taches -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Mes Taches"
+          fi
+          echo "TASKS_KEYSTORE=$TASKS_KEY_DIR/mes-taches.jks" >> "$GITHUB_ENV"
+      - name: Preserve private signing key
+        uses: actions/upload-artifact@v4
+        with:
+          name: MesTaches-signing-key-v1
+          path: ${{ env.TASKS_KEYSTORE }}
+          retention-days: 90
+          if-no-files-found: error
+      - name: Test and compile
+        run: gradle -p mes-taches --no-daemon testDebugUnitTest lintDebug assembleRelease
+      - name: Test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: MesTaches-test-reports
+          path: mes-taches/app/build/reports
+          retention-days: 14
+      - name: Prepare installer
+        run: cp mes-taches/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/MesTaches.apk"
+      - name: Installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MesTaches-apk
+          path: ${{ runner.temp }}/MesTaches.apk
+          if-no-files-found: error
+          retention-days: 90
+      - name: Make installer downloadable
+        shell: bash
+        run: |
+          set -euo pipefail
+          TASKS_TAG=mes-taches-v1.0
+          if gh release view "$TASKS_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TASKS_TAG" "$RUNNER_TEMP/MesTaches.apk" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TASKS_TAG" "$RUNNER_TEMP/MesTaches.apk" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Mes tâches 1.0" --notes "Application Android : tâches et rendez-vous, date, heure, cases à cocher et sauvegarde sur le téléphone." --prerelease --latest=false
+          fi

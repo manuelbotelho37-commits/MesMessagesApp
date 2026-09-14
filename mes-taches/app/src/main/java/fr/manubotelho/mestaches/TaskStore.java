@@ -10,6 +10,8 @@ import java.util.List;
 
 final class TaskStore extends SQLiteOpenHelper {
     static final String NAME = "mes_taches.db";
+    private final Context appContext;
+
     static final class Task {
         final long id, dueAt;
         final String title;
@@ -20,7 +22,11 @@ final class TaskStore extends SQLiteOpenHelper {
         }
     }
 
-    TaskStore(Context context) { super(context, NAME, null, 1); }
+    TaskStore(Context context) {
+        super(context, NAME, null, 1);
+        Context application=context.getApplicationContext();
+        appContext=application==null?context:application;
+    }
     @Override public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, due_at INTEGER NOT NULL, appointment INTEGER NOT NULL DEFAULT 0, done INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX tasks_due ON tasks(done, due_at, id)");
@@ -55,18 +61,32 @@ final class TaskStore extends SQLiteOpenHelper {
         values.put("title",title); values.put("due_at",dueAt);
         values.put("appointment",appointment?1:0);
         values.put("updated_at",System.currentTimeMillis());
-        if (id==0) return getWritableDatabase().insertOrThrow("tasks",null,values);
-        if (getWritableDatabase().update("tasks",values,"id=?",new String[]{Long.toString(id)})!=1)
-            throw new IllegalStateException("Cette tâche n’existe plus.");
-        return id;
+        long savedId;
+        if (id==0) {
+            savedId=getWritableDatabase().insertOrThrow("tasks",null,values);
+        } else {
+            if (getWritableDatabase().update("tasks",values,"id=?",new String[]{Long.toString(id)})!=1)
+                throw new IllegalStateException("Cette tâche n’existe plus.");
+            savedId=id;
+        }
+        syncReminder(savedId);
+        return savedId;
     }
     void setDone(long id, boolean done) {
         ContentValues values=new ContentValues();
         values.put("done",done?1:0); values.put("updated_at",System.currentTimeMillis());
         if (getWritableDatabase().update("tasks",values,"id=?",new String[]{Long.toString(id)})!=1)
             throw new IllegalStateException("Cette tâche n’existe plus.");
+        syncReminder(id);
     }
     void delete(long id) {
+        try { ReminderScheduler.cancel(appContext,id); } catch (RuntimeException ignored) {}
         getWritableDatabase().delete("tasks","id=?",new String[]{Long.toString(id)});
+    }
+    private void syncReminder(long id) {
+        try { ReminderScheduler.sync(appContext,get(id)); }
+        catch (RuntimeException ignored) {
+            // La tâche reste enregistrée même si Android refuse temporairement un rappel.
+        }
     }
 }

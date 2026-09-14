@@ -88,7 +88,7 @@ public final class MainActivity extends Activity {
         outer.addView(body,bodyParams);
         outer.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{
             int available=Math.max(0,r-l-outer.getPaddingLeft()-outer.getPaddingRight());
-            int desired=Math.min(available,dp(760));
+            int desired=Math.min(available,dp(980));
             if (desired>0 && body.getLayoutParams().width!=desired) {
                 bodyParams.width=desired; body.setLayoutParams(bodyParams);
             }
@@ -169,10 +169,13 @@ public final class MainActivity extends Activity {
                 TextView help=text(showingDone?"Les tâches cochées se retrouveront ici.":"Appuie sur « + Ajouter » pour commencer.",17,MUTED,false);
                 help.setGravity(Gravity.CENTER); help.setPadding(dp(12),0,dp(12),dp(26)); list.addView(help);
             } else {
+                boolean twoColumns=getResources().getConfiguration().screenWidthDp>=700;
                 LocalDate previous=null;
+                LinearLayout pair=null;
                 for (TaskStore.Task task:tasks) {
                     LocalDate date=Instant.ofEpochMilli(task.dueAt).atZone(ZoneId.systemDefault()).toLocalDate();
                     if (!showingDone && !date.equals(previous)) {
+                        pair=null;
                         String day=date.equals(now)?"Aujourd’hui":date.equals(now.plusDays(1))?"Demain":date.format(DateTimeFormatter.ofPattern("EEEE",FR));
                         String label=day+" · "+date.format(DateTimeFormatter.ofPattern("d MMMM yyyy",FR));
                         TextView group=text(label,16,date.isBefore(now)?RED:MUTED,true);
@@ -180,7 +183,24 @@ public final class MainActivity extends Activity {
                         if (Build.VERSION.SDK_INT>=28) group.setAccessibilityHeading(true);
                         list.addView(group); previous=date;
                     }
-                    list.addView(taskRow(task));
+                    if (twoColumns) {
+                        if (pair==null || pair.getChildCount()>=2) {
+                            pair=new LinearLayout(this);
+                            pair.setOrientation(LinearLayout.HORIZONTAL);
+                            pair.setGravity(Gravity.TOP);
+                            list.addView(pair,new LinearLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
+                        }
+                        View card=taskRow(task);
+                        LinearLayout.LayoutParams cardParams=new LinearLayout.LayoutParams(
+                                0,ViewGroup.LayoutParams.WRAP_CONTENT,1);
+                        if (pair.getChildCount()==0) cardParams.setMarginEnd(dp(6));
+                        else cardParams.setMarginStart(dp(6));
+                        cardParams.bottomMargin=dp(10);
+                        pair.addView(card,cardParams);
+                    } else {
+                        list.addView(taskRow(task));
+                    }
                 }
             }
             scroll.post(()->scroll.scrollTo(0,previousScroll));
@@ -399,7 +419,11 @@ public final class MainActivity extends Activity {
         super.onSaveInstanceState(out);
     }
     @Override protected void onResume() {
-        super.onResume(); refresh(); handler.removeCallbacks(refreshClock); handler.postDelayed(refreshClock,60000);
+        super.onResume();
+        ReminderScheduler.rescheduleAll(this);
+        refresh();
+        handler.removeCallbacks(refreshClock);
+        handler.postDelayed(refreshClock,60000);
     }
     @Override protected void onPause() { handler.removeCallbacks(refreshClock); super.onPause(); }
     @Override protected void onDestroy() {

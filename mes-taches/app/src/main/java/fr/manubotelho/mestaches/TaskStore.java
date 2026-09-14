@@ -22,17 +22,34 @@ final class TaskStore extends SQLiteOpenHelper {
         }
     }
 
+    static final class Attachment {
+        final long id, taskId;
+        final String kind, label, value, mimeType;
+        Attachment(long id,long taskId,String kind,String label,String value,String mimeType) {
+            this.id=id; this.taskId=taskId; this.kind=kind; this.label=label;
+            this.value=value; this.mimeType=mimeType;
+        }
+    }
+
     TaskStore(Context context) {
-        super(context, NAME, null, 1);
+        super(context, NAME, null, 2);
         Context application=context.getApplicationContext();
         appContext=application==null?context:application;
     }
     @Override public void onCreate(SQLiteDatabase db) {
+        createTasks(db);
+        createAttachments(db);
+    }
+    private void createTasks(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, due_at INTEGER NOT NULL, appointment INTEGER NOT NULL DEFAULT 0, done INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX tasks_due ON tasks(done, due_at, id)");
     }
+    private void createAttachments(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS attachments (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, kind TEXT NOT NULL, label TEXT NOT NULL, value TEXT NOT NULL, mime_type TEXT, created_at INTEGER NOT NULL)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS attachments_task ON attachments(task_id, created_at, id)");
+    }
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        throw new IllegalStateException("Une migration est nécessaire.");
+        if (oldVersion < 2) createAttachments(db);
     }
     private Task read(Cursor c) {
         return new Task(c.getLong(0), c.getString(1), c.getLong(2), c.getInt(3)==1, c.getInt(4)==1);
@@ -81,8 +98,40 @@ final class TaskStore extends SQLiteOpenHelper {
     }
     void delete(long id) {
         try { ReminderScheduler.cancel(appContext,id); } catch (RuntimeException ignored) {}
-        getWritableDatabase().delete("tasks","id=?",new String[]{Long.toString(id)});
+        SQLiteDatabase db=getWritableDatabase();
+        db.beginTransaction();
+        try {
+            db.delete("attachments","task_id=?",new String[]{Long.toString(id)});
+            db.delete("tasks","id=?",new String[]{Long.toString(id)});
+            db.setTransactionSuccessful();
+        } finally { db.endTransaction(); }
     }
+
+    long addAttachment(long taskId,String kind,String label,String value,String mimeType) {
+        if (get(taskId)==null) throw new IllegalArgumentException("Tâche introuvable.");
+        ContentValues values=new ContentValues();
+        values.put("task_id",taskId);
+        values.put("kind",kind==null?"note":kind);
+        values.put("label",label==null||label.trim().isEmpty()?"Élément":label.trim());
+        values.put("value",value==null?"":value.trim());
+        values.put("mime_type",mimeType);
+        values.put("created_at",System.currentTimeMillis());
+        return getWritableDatabase().insertOrThrow("attachments",null,values);
+    }
+    List<Attachment> listAttachments(long taskId) {
+        ArrayList<Attachment> result=new ArrayList<>();
+        try (Cursor c=getReadableDatabase().query("attachments",
+                new String[]{"id","task_id","kind","label","value","mime_type"},
+                "task_id=?",new String[]{Long.toString(taskId)},null,null,"created_at ASC, id ASC")) {
+            while (c.moveToNext()) result.add(new Attachment(
+                    c.getLong(0),c.getLong(1),c.getString(2),c.getString(3),c.getString(4),c.getString(5)));
+        }
+        return result;
+    }
+    void deleteAttachment(long id) {
+        getWritableDatabase().delete("attachments","id=?",new String[]{Long.toString(id)});
+    }
+
     private void syncReminder(long id) {
         try { ReminderScheduler.sync(appContext,get(id)); }
         catch (RuntimeException ignored) {

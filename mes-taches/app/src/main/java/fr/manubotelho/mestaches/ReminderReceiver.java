@@ -35,12 +35,12 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 open,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        String heading = task.appointment ? "Rendez-vous maintenant" : "Tâche à faire";
+        String detail = task.appointment ? "Rendez-vous à faire maintenant" : "Tâche à faire maintenant";
         Notification notification = new Notification.Builder(context, ReminderScheduler.CHANNEL_ID)
                 .setSmallIcon(fr.manubotelho.mestaches.R.drawable.ic_notification)
-                .setContentTitle(heading)
-                .setContentText(task.title)
-                .setStyle(new Notification.BigTextStyle().bigText(task.title))
+                .setContentTitle(task.title)
+                .setContentText(detail)
+                .setStyle(new Notification.BigTextStyle().setBigContentTitle(task.title).bigText(detail))
                 .setCategory(Notification.CATEGORY_REMINDER)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .setPriority(Notification.PRIORITY_HIGH)

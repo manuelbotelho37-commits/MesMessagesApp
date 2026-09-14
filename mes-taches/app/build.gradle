@@ -13,8 +13,8 @@ android {
         applicationId 'fr.manubotelho.mestaches'
         minSdk 26
         targetSdk 35
-        versionCode 14
-        versionName '2.3-alertes-sms'
+        versionCode 15
+        versionName '2.4-alerte-statique'
     }
     signingConfigs {
         release {

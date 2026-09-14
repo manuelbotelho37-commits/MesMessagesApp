@@ -3,6 +3,7 @@ package fr.manubotelho.mestaches;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.widget.Toast;
 import java.util.Calendar;
@@ -12,6 +13,9 @@ import java.util.regex.Pattern;
 
 public final class ShareToTaskActivity extends Activity {
     private static final Pattern URL=Pattern.compile("https?://\\S+");
+    private static final String BRIDGE_PREFS="share_bridge";
+    private static final String PENDING_SMS_TASK="pending_sms_task";
+    private static final String PENDING_SMS_AT="pending_sms_at";
     private TaskStore store;
     private String sharedText, subject, detectedUrl;
     private boolean sharedLink, sharedMap;
@@ -27,6 +31,9 @@ public final class ShareToTaskActivity extends Activity {
         if (sharedText.isEmpty()) {
             Toast.makeText(this,"Aucun contenu à ajouter.",Toast.LENGTH_LONG).show(); finish(); return;
         }
+
+        if (attachPendingSmsIfAny()) return;
+
         Matcher matcher=URL.matcher(sharedText);
         if (matcher.find()) {
             detectedUrl=matcher.group();
@@ -34,6 +41,29 @@ public final class ShareToTaskActivity extends Activity {
             sharedLink=sharedMap || sharedText.equals(detectedUrl) || (!subject.isEmpty() && sharedText.length()<detectedUrl.length()+20);
         }
         chooseTask();
+    }
+
+    private boolean attachPendingSmsIfAny() {
+        SharedPreferences prefs=getSharedPreferences(BRIDGE_PREFS,MODE_PRIVATE);
+        long taskId=prefs.getLong(PENDING_SMS_TASK,0);
+        long startedAt=prefs.getLong(PENDING_SMS_AT,0);
+        if (taskId==0 || startedAt==0 || System.currentTimeMillis()-startedAt>5L*60L*1000L) {
+            prefs.edit().remove(PENDING_SMS_TASK).remove(PENDING_SMS_AT).apply();
+            return false;
+        }
+        TaskStore.Task task;
+        try { task=store.get(taskId); }
+        catch (RuntimeException ex) { task=null; }
+        if (task==null || task.done) {
+            prefs.edit().remove(PENDING_SMS_TASK).remove(PENDING_SMS_AT).apply();
+            return false;
+        }
+        String label=subject.isEmpty()?"SMS partagé":"SMS · "+subject;
+        store.addAttachment(taskId,"sms",label,sharedText,"text/plain");
+        prefs.edit().remove(PENDING_SMS_TASK).remove(PENDING_SMS_AT).apply();
+        Toast.makeText(this,"SMS ajouté à « "+task.title+" ».",Toast.LENGTH_LONG).show();
+        openTask(taskId);
+        return true;
     }
 
     private void chooseTask() {

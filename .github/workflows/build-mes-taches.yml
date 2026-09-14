@@ -22,6 +22,7 @@ jobs:
         run: |
           python3 mes-taches/tools/apply_build_patches.py
           python3 mes-taches/tools/apply_urgent_patch.py
+          python3 mes-taches/tools/apply_mail_sms_patch.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

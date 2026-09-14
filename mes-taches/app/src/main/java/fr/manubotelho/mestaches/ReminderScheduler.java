@@ -13,8 +13,8 @@ import android.os.Build;
 import android.provider.Settings;
 
 final class ReminderScheduler {
-    // Nouveau canal afin qu'Android/Samsung recrée bien un canal PRIORITÉ HAUTE.
-    static final String CHANNEL_ID = "mes_taches_manu_reminders_v2";
+    // Nouveau canal : rappels visibles mais jamais en plein écran.
+    static final String CHANNEL_ID = "mes_taches_manu_reminders_v3_compact";
     static final String EXTRA_TASK_ID = "task_id";
 
     private ReminderScheduler() {}
@@ -25,16 +25,16 @@ final class ReminderScheduler {
         if (manager == null || manager.getNotificationChannel(CHANNEL_ID) != null) return;
         NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
-                "Rappels visibles Mes tâches Manu",
+                "Rappels compacts Mes tâches Manu",
                 NotificationManager.IMPORTANCE_HIGH);
-        channel.setDescription("Rappels visibles sur l’écran verrouillé jusqu’à ce que la tâche soit terminée");
+        channel.setDescription("Une petite notification par tâche, visible sur l’écran verrouillé et empilable avec les autres tâches");
         channel.enableVibration(true);
         channel.enableLights(true);
         channel.setShowBadge(true);
         channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
         AudioAttributes audio = new AudioAttributes.Builder()
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                 .build();
         channel.setSound(Settings.System.DEFAULT_NOTIFICATION_URI, audio);
         manager.createNotificationChannel(channel);

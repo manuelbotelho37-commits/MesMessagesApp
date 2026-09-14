@@ -40,31 +40,21 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 open,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        Intent alert = new Intent(context, ReminderAlertActivity.class)
-                .putExtra(ReminderScheduler.EXTRA_TASK_ID, task.id)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        PendingIntent fullScreenIntent = PendingIntent.getActivity(
-                context,
-                ReminderScheduler.notificationId(task.id) + 100000,
-                alert,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
         String detail = task.appointment ? "Rendez-vous à faire maintenant" : "Tâche à faire maintenant";
         Notification.Builder builder = new Notification.Builder(context, ReminderScheduler.CHANNEL_ID)
                 .setSmallIcon(fr.manubotelho.mestaches.R.drawable.ic_notification)
                 .setContentTitle(task.title)
                 .setContentText(detail)
-                .setStyle(new Notification.BigTextStyle().setBigContentTitle(task.title).bigText(detail + "\nElle restera affichée jusqu’à ce que tu la termines."))
-                .setCategory(Notification.CATEGORY_ALARM)
+                .setSubText("Mes tâches Manu")
+                .setCategory(Notification.CATEGORY_REMINDER)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .setPriority(Notification.PRIORITY_MAX)
+                .setPriority(Notification.PRIORITY_HIGH)
                 .setWhen(task.dueAt)
                 .setShowWhen(true)
                 .setOngoing(true)
                 .setAutoCancel(false)
                 .setOnlyAlertOnce(true)
-                .setContentIntent(contentIntent)
-                .setFullScreenIntent(fullScreenIntent, true);
+                .setContentIntent(contentIntent);
 
         NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager != null) manager.notify(ReminderScheduler.notificationId(task.id), builder.build());

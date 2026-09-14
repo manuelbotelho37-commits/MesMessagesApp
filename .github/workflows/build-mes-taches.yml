@@ -19,7 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Apply Mes tâches Manu UX patches
-        run: python3 mes-taches/tools/apply_build_patches.py
+        run: |
+          python3 mes-taches/tools/apply_build_patches.py
+          python3 mes-taches/tools/apply_urgent_patch.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

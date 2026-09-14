@@ -80,4 +80,54 @@ replace_once(
     "réaffichage notification",
 )
 
+# 4) Ajouter une ligne dans Couleurs pour le fond des tâches à effectuer.
+replace_once(
+    main,
+    'private static final String PREFS="appearance", PREF_TODO="todoColor", PREF_DONE="doneColor", PREF_ADD="addColor";',
+    'private static final String PREFS="appearance", PREF_TODO="todoColor", PREF_DONE="doneColor", PREF_ADD="addColor", PREF_TASK_BG="taskBackgroundColor";',
+    "préférence fond tâches",
+)
+replace_once(
+    main,
+    'row.setBackground(shape(WHITE,wideLayout?12:16,BORDER));',
+    'row.setBackground(shape(task.done?WHITE:taskBackgroundColor(),wideLayout?12:16,BORDER));',
+    "fond carte tâche",
+)
+replace_once(
+    main,
+    'details.setBackground(new RippleDrawable(ColorStateList.valueOf(0x16174ccb),null,shape(WHITE,10,WHITE)));',
+    'int cardFill=task.done?WHITE:taskBackgroundColor();\n        details.setBackground(new RippleDrawable(ColorStateList.valueOf(0x16174ccb),null,shape(cardFill,10,cardFill)));',
+    "fond détail tâche",
+)
+replace_once(
+    main,
+    'String[] options={"À faire  ·  "+colorName(todoColor()),"Terminées  ·  "+colorName(doneColor()),"+ Ajouter  ·  "+colorName(addColor()),"Réinitialiser les couleurs"};',
+    'String[] options={"À faire  ·  "+colorName(todoColor()),"Terminées  ·  "+colorName(doneColor()),"+ Ajouter  ·  "+colorName(addColor()),"Fond des tâches à effectuer  ·  "+colorName(taskBackgroundColor()),"Réinitialiser les couleurs"};',
+    "ligne fond tâches dans couleurs",
+)
+replace_once(
+    main,
+    'if (which==3) {\n                prefs.edit().remove(PREF_TODO).remove(PREF_DONE).remove(PREF_ADD).apply(); refresh(); return;\n            }\n            String key=which==0?PREF_TODO:which==1?PREF_DONE:PREF_ADD;\n            String title=which==0?"Couleur de À faire":which==1?"Couleur de Terminées":"Couleur de + Ajouter";',
+    'if (which==4) {\n                prefs.edit().remove(PREF_TODO).remove(PREF_DONE).remove(PREF_ADD).remove(PREF_TASK_BG).apply(); refresh(); return;\n            }\n            String key=which==0?PREF_TODO:which==1?PREF_DONE:which==2?PREF_ADD:PREF_TASK_BG;\n            String title=which==0?"Couleur de À faire":which==1?"Couleur de Terminées":which==2?"Couleur de + Ajouter":"Fond des tâches à effectuer";',
+    "gestion ligne fond tâches",
+)
+replace_once(
+    main,
+    'String[] names={"Bleu","Jaune","Orange","Vert","Violet","Rouge","Rose","Turquoise","Gris foncé"};\n        int[] colors={0xff174ccb,0xfff2c94c,0xfff28c28,0xff2e9d52,0xff7b4cc9,0xffd04444,0xffd94f8a,0xff159aa6,0xff44546a};',
+    'String[] names={"Blanc","Bleu clair","Jaune clair","Orange clair","Vert clair","Violet clair","Rose clair","Turquoise clair","Gris clair","Bleu","Jaune","Orange","Vert","Violet","Rouge","Rose","Turquoise","Gris foncé"};\n        int[] colors={0xffffffff,0xffeaf1ff,0xfffff5c7,0xffffead7,0xffe5f6e9,0xffefe8ff,0xffffe7f0,0xffe1f7f8,0xffeef1f5,0xff174ccb,0xfff2c94c,0xfff28c28,0xff2e9d52,0xff7b4cc9,0xffd04444,0xffd94f8a,0xff159aa6,0xff44546a};',
+    "palette fonds clairs",
+)
+replace_once(
+    main,
+    'private int addColor() { return prefs==null?ORANGE:prefs.getInt(PREF_ADD,ORANGE); }',
+    'private int addColor() { return prefs==null?ORANGE:prefs.getInt(PREF_ADD,ORANGE); }\n    private int taskBackgroundColor() { return prefs==null?WHITE:prefs.getInt(PREF_TASK_BG,WHITE); }',
+    "lecture fond tâche",
+)
+replace_once(
+    main,
+    'if (color==0xff44546a) return "Gris foncé"; return "Personnalisée";',
+    'if (color==0xffffffff) return "Blanc"; if (color==0xffeaf1ff) return "Bleu clair";\n        if (color==0xfffff5c7) return "Jaune clair"; if (color==0xffffead7) return "Orange clair";\n        if (color==0xffe5f6e9) return "Vert clair"; if (color==0xffefe8ff) return "Violet clair";\n        if (color==0xffffe7f0) return "Rose clair"; if (color==0xffe1f7f8) return "Turquoise clair";\n        if (color==0xffeef1f5) return "Gris clair"; if (color==0xff44546a) return "Gris foncé"; return "Personnalisée";',
+    "noms fonds clairs",
+)
+
 print("Patches Mes tâches Manu appliqués")

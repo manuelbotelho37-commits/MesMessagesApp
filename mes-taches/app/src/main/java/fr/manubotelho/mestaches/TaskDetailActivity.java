@@ -237,8 +237,7 @@ public final class TaskDetailActivity extends Activity {
         }
 
         try {
-            int flags=data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
-            if (flags!=0) getContentResolver().takePersistableUriPermission(uri,flags);
+            getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
         } catch (SecurityException ignored) {}
 
         String mime=getContentResolver().getType(uri);

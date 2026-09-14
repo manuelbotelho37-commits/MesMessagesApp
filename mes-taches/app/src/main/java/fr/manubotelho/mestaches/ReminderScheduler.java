@@ -13,7 +13,8 @@ import android.os.Build;
 import android.provider.Settings;
 
 final class ReminderScheduler {
-    static final String CHANNEL_ID = "mes_taches_manu_reminders_v1";
+    // Nouveau canal afin qu'Android/Samsung recrée bien un canal PRIORITÉ HAUTE.
+    static final String CHANNEL_ID = "mes_taches_manu_reminders_v2";
     static final String EXTRA_TASK_ID = "task_id";
 
     private ReminderScheduler() {}
@@ -24,14 +25,16 @@ final class ReminderScheduler {
         if (manager == null || manager.getNotificationChannel(CHANNEL_ID) != null) return;
         NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
-                "Rappels Mes tâches Manu",
+                "Rappels visibles Mes tâches Manu",
                 NotificationManager.IMPORTANCE_HIGH);
-        channel.setDescription("Rappels des tâches et rendez-vous à l’heure prévue");
+        channel.setDescription("Rappels visibles sur l’écran verrouillé jusqu’à ce que la tâche soit terminée");
         channel.enableVibration(true);
+        channel.enableLights(true);
+        channel.setShowBadge(true);
         channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
         AudioAttributes audio = new AudioAttributes.Builder()
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                .setUsage(AudioAttributes.USAGE_ALARM)
                 .build();
         channel.setSound(Settings.System.DEFAULT_NOTIFICATION_URI, audio);
         manager.createNotificationChannel(channel);
@@ -39,8 +42,16 @@ final class ReminderScheduler {
 
     static void sync(Context context, TaskStore.Task task) {
         if (task == null) return;
-        cancel(context, task.id);
-        if (task.done || task.dueAt <= System.currentTimeMillis()) return;
+        cancelAlarmOnly(context, task.id);
+        if (task.done) {
+            cancelNotification(context, task.id);
+            return;
+        }
+        createChannel(context);
+        if (task.dueAt <= System.currentTimeMillis()) {
+            ReminderReceiver.showReminder(context, task);
+            return;
+        }
         AlarmManager manager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (manager == null) return;
         PendingIntent reminder = pendingIntent(context, task.id, PendingIntent.FLAG_UPDATE_CURRENT);
@@ -60,6 +71,21 @@ final class ReminderScheduler {
     }
 
     static void cancel(Context context, long taskId) {
+        cancelAlarmOnly(context, taskId);
+        cancelNotification(context, taskId);
+    }
+
+    static void cancelNotification(Context context, long taskId) {
+        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager != null) manager.cancel(notificationId(taskId));
+    }
+
+    static int notificationId(long taskId) {
+        int id=(int)(taskId & 0x7fffffff);
+        return id==0?1:id;
+    }
+
+    private static void cancelAlarmOnly(Context context, long taskId) {
         AlarmManager manager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         PendingIntent reminder = pendingIntent(context, taskId, PendingIntent.FLAG_UPDATE_CURRENT);
         if (manager != null) manager.cancel(reminder);

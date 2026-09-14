@@ -17,6 +17,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.InputFilter;
 import android.text.InputType;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -50,9 +51,10 @@ public final class MainActivity extends Activity {
     private TaskStore store;
     private SharedPreferences prefs;
     private boolean showingDone=false;
+    private boolean wideLayout=false;
     private LinearLayout list;
     private ScrollView scroll;
-    private TextView summary, today;
+    private TextView summary, today, paneTitle;
     private Button todoTab, doneTab, addButton;
     private AlertDialog editorDialog;
     private EditText titleField;
@@ -80,15 +82,17 @@ public final class MainActivity extends Activity {
     }
 
     private void makeScreen() {
+        wideLayout=getResources().getConfiguration().screenWidthDp>=700;
         FrameLayout outer=new FrameLayout(this);
         outer.setBackgroundColor(BG);
-        LinearLayout body=column();
+        LinearLayout body=new LinearLayout(this);
+        body.setOrientation(wideLayout?LinearLayout.HORIZONTAL:LinearLayout.VERTICAL);
         FrameLayout.LayoutParams bodyParams=new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT,Gravity.CENTER_HORIZONTAL);
         outer.addView(body,bodyParams);
         outer.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{
             int available=Math.max(0,r-l-outer.getPaddingLeft()-outer.getPaddingRight());
-            int desired=Math.min(available,dp(980));
+            int desired=Math.min(available,wideLayout?dp(1200):dp(760));
             if (desired>0 && body.getLayoutParams().width!=desired) {
                 bodyParams.width=desired; body.setLayoutParams(bodyParams);
             }
@@ -106,42 +110,73 @@ public final class MainActivity extends Activity {
         setContentView(outer);
         outer.requestApplyInsets();
 
-        LinearLayout heading=column(); heading.setPadding(dp(22),dp(20),dp(22),dp(8));
-        today=text("",16,MUTED,false); heading.addView(today);
-        TextView name=text("Mes tâches Manu",32,INK,true);
+        LinearLayout controls=wideLayout?column():body;
+        if (wideLayout) {
+            controls.setBackgroundColor(BG);
+            body.addView(controls,new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.MATCH_PARENT,0.36f));
+            View divider=new View(this); divider.setBackgroundColor(BORDER);
+            body.addView(divider,new LinearLayout.LayoutParams(dp(1),ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+
+        LinearLayout heading=column();
+        heading.setPadding(dp(22),wideLayout?dp(18):dp(20),dp(22),dp(8));
+        today=text("",wideLayout?15:16,MUTED,false); heading.addView(today);
+        TextView name=text("Mes tâches Manu",wideLayout?27:32,INK,true);
         name.setPadding(0,dp(6),0,dp(4)); heading.addView(name);
-        summary=text("",16,MUTED,false); heading.addView(summary);
+        summary=text("",wideLayout?15:16,MUTED,false); heading.addView(summary);
         Button colors=button("🎨  Couleurs",false); colors.setId(COLORS);
-        colors.setMinHeight(dp(46)); colors.setMinimumHeight(dp(46));
+        colors.setMinHeight(dp(44)); colors.setMinimumHeight(dp(44));
         LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT);
-        cp.topMargin=dp(10); heading.addView(colors,cp);
+        cp.topMargin=dp(8); heading.addView(colors,cp);
         colors.setOnClickListener(v->openColorSettings());
-        body.addView(heading);
+        controls.addView(heading);
 
         LinearLayout tabs=new LinearLayout(this);
-        tabs.setPadding(dp(20),dp(8),dp(20),dp(12));
+        tabs.setPadding(dp(20),dp(6),dp(20),dp(10));
         todoTab=button("À faire",false); todoTab.setId(TODO);
         doneTab=button("Terminées",false); doneTab.setId(DONE);
+        if (wideLayout) {
+            todoTab.setTextSize(15); doneTab.setTextSize(15);
+            todoTab.setMinHeight(dp(48)); doneTab.setMinHeight(dp(48));
+        }
         LinearLayout.LayoutParams left=new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1);
-        left.setMarginEnd(dp(8)); tabs.addView(todoTab,left);
+        left.setMarginEnd(dp(7)); tabs.addView(todoTab,left);
         tabs.addView(doneTab,new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1));
-        todoTab.setOnClickListener(v->{ showingDone=false; scroll.scrollTo(0,0); refresh(); });
-        doneTab.setOnClickListener(v->{ showingDone=true; scroll.scrollTo(0,0); refresh(); });
-        body.addView(tabs);
+        todoTab.setOnClickListener(v->{ showingDone=false; if(scroll!=null) scroll.scrollTo(0,0); refresh(); });
+        doneTab.setOnClickListener(v->{ showingDone=true; if(scroll!=null) scroll.scrollTo(0,0); refresh(); });
+        controls.addView(tabs);
 
-        scroll=new ScrollView(this); scroll.setFillViewport(true);
-        scroll.setClipToPadding(false); scroll.setPadding(dp(20),0,dp(20),dp(12));
-        list=column();
-        scroll.addView(list,new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
-        body.addView(scroll,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,0,1));
+        if (wideLayout) {
+            View spacer=new View(this);
+            controls.addView(spacer,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,0,1));
+        }
 
-        LinearLayout footer=column(); footer.setPadding(dp(20),dp(8),dp(20),dp(10));
-        addButton=button("+  Ajouter",true); addButton.setId(ADD); addButton.setTextSize(20);
+        LinearLayout footer=column(); footer.setPadding(dp(20),dp(8),dp(20),dp(12));
+        addButton=button("+  Ajouter",true); addButton.setId(ADD); addButton.setTextSize(wideLayout?18:20);
         addButton.setOnClickListener(v->openEditor(null,null));
         footer.addView(addButton,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
-        TextView saved=text("Enregistré sur ce téléphone",14,MUTED,false);
-        saved.setGravity(Gravity.CENTER); saved.setPadding(0,dp(8),0,0);
-        footer.addView(saved); body.addView(footer);
+        TextView saved=text("Enregistré sur ce téléphone",wideLayout?12:14,MUTED,false);
+        saved.setGravity(Gravity.CENTER); saved.setPadding(0,dp(7),0,0);
+        footer.addView(saved);
+
+        LinearLayout taskPane=wideLayout?column():body;
+        if (wideLayout) {
+            taskPane.setPadding(dp(12),dp(12),dp(12),dp(8));
+            paneTitle=text("Toutes les tâches à faire",20,INK,true);
+            paneTitle.setPadding(dp(4),dp(2),dp(4),dp(8));
+            taskPane.addView(paneTitle);
+            body.addView(taskPane,new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.MATCH_PARENT,0.64f));
+        }
+
+        scroll=new ScrollView(this); scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
+        scroll.setPadding(wideLayout?dp(2):dp(20),0,wideLayout?dp(2):dp(20),wideLayout?dp(4):dp(12));
+        list=column();
+        scroll.addView(list,new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
+        taskPane.addView(scroll,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,0,1));
+
+        if (wideLayout) controls.addView(footer);
+        else body.addView(footer);
         applyMainColors();
     }
 
@@ -157,25 +192,23 @@ public final class MainActivity extends Activity {
             summary.setText(pending.isEmpty()?"Tout est à jour":pending.size()+" "+(pending.size()>1?"choses à faire":"chose à faire"));
             todoTab.setText("À faire ("+pending.size()+")");
             doneTab.setText("Terminées ("+completed.size()+")");
+            if (paneTitle!=null) paneTitle.setText(showingDone?"Tâches terminées":"Toutes les tâches à faire");
             applyMainColors();
             list.removeAllViews(); list.setGravity(Gravity.TOP);
             List<TaskStore.Task> tasks=showingDone?completed:pending;
             if (tasks.isEmpty()) {
                 list.setGravity(Gravity.CENTER);
-                TextView tick=text("✓",48,showingDone?doneColor():todoColor(),true); tick.setGravity(Gravity.CENTER);
+                TextView tick=text("✓",wideLayout?38:48,showingDone?doneColor():todoColor(),true); tick.setGravity(Gravity.CENTER);
                 list.addView(tick);
-                TextView empty=text(showingDone?"Rien de terminé":"Rien de prévu",23,INK,true);
-                empty.setGravity(Gravity.CENTER); empty.setPadding(0,dp(12),0,dp(8)); list.addView(empty);
-                TextView help=text(showingDone?"Les tâches cochées se retrouveront ici.":"Appuie sur « + Ajouter » pour commencer.",17,MUTED,false);
-                help.setGravity(Gravity.CENTER); help.setPadding(dp(12),0,dp(12),dp(26)); list.addView(help);
+                TextView empty=text(showingDone?"Rien de terminé":"Rien de prévu",wideLayout?20:23,INK,true);
+                empty.setGravity(Gravity.CENTER); empty.setPadding(0,dp(10),0,dp(6)); list.addView(empty);
+                TextView help=text(showingDone?"Les tâches cochées se retrouveront ici.":"Appuie sur « + Ajouter » pour commencer.",wideLayout?15:17,MUTED,false);
+                help.setGravity(Gravity.CENTER); help.setPadding(dp(12),0,dp(12),dp(20)); list.addView(help);
             } else {
-                boolean twoColumns=getResources().getConfiguration().screenWidthDp>=700;
                 LocalDate previous=null;
-                LinearLayout pair=null;
                 for (TaskStore.Task task:tasks) {
                     LocalDate date=Instant.ofEpochMilli(task.dueAt).atZone(ZoneId.systemDefault()).toLocalDate();
-                    if (!showingDone && !date.equals(previous)) {
-                        pair=null;
+                    if (!wideLayout && !showingDone && !date.equals(previous)) {
                         String day=date.equals(now)?"Aujourd’hui":date.equals(now.plusDays(1))?"Demain":date.format(DateTimeFormatter.ofPattern("EEEE",FR));
                         String label=day+" · "+date.format(DateTimeFormatter.ofPattern("d MMMM yyyy",FR));
                         TextView group=text(label,16,date.isBefore(now)?RED:MUTED,true);
@@ -183,24 +216,7 @@ public final class MainActivity extends Activity {
                         if (Build.VERSION.SDK_INT>=28) group.setAccessibilityHeading(true);
                         list.addView(group); previous=date;
                     }
-                    if (twoColumns) {
-                        if (pair==null || pair.getChildCount()>=2) {
-                            pair=new LinearLayout(this);
-                            pair.setOrientation(LinearLayout.HORIZONTAL);
-                            pair.setGravity(Gravity.TOP);
-                            list.addView(pair,new LinearLayout.LayoutParams(
-                                    ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
-                        }
-                        View card=taskRow(task);
-                        LinearLayout.LayoutParams cardParams=new LinearLayout.LayoutParams(
-                                0,ViewGroup.LayoutParams.WRAP_CONTENT,1);
-                        if (pair.getChildCount()==0) cardParams.setMarginEnd(dp(6));
-                        else cardParams.setMarginStart(dp(6));
-                        cardParams.bottomMargin=dp(10);
-                        pair.addView(card,cardParams);
-                    } else {
-                        list.addView(taskRow(task));
-                    }
+                    list.addView(taskRow(task));
                 }
             }
             scroll.post(()->scroll.scrollTo(0,previousScroll));
@@ -211,43 +227,59 @@ public final class MainActivity extends Activity {
 
     private View taskRow(TaskStore.Task task) {
         LinearLayout row=new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setBackground(shape(WHITE,16,BORDER));
+        row.setBackground(shape(WHITE,wideLayout?12:16,BORDER));
         LinearLayout.LayoutParams rowParams=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
-        rowParams.bottomMargin=dp(10); row.setLayoutParams(rowParams);
-        row.setPadding(dp(4),dp(6),dp(8),dp(6));
+        rowParams.bottomMargin=dp(wideLayout?6:10); row.setLayoutParams(rowParams);
+        row.setPadding(wideLayout?dp(2):dp(4),wideLayout?dp(2):dp(6),wideLayout?dp(5):dp(8),wideLayout?dp(2):dp(6));
+
         CheckBox check=new CheckBox(this); check.setChecked(task.done);
         check.setTag("check:"+task.id);
         check.setButtonTintList(ColorStateList.valueOf(task.done?doneColor():todoColor()));
         check.setContentDescription((task.done?"Remettre à faire : ":"Terminer : ")+task.title);
-        row.addView(check,new LinearLayout.LayoutParams(dp(56),dp(64)));
+        row.addView(check,new LinearLayout.LayoutParams(dp(wideLayout?44:56),dp(wideLayout?52:64)));
         check.setOnCheckedChangeListener((button,checked)->{
             try { store.setDone(task.id,checked); refresh(); }
             catch (RuntimeException ex) { refresh(); error(); }
         });
 
-        LinearLayout details=column(); details.setPadding(0,dp(10),dp(8),dp(10));
+        LinearLayout details=column();
+        details.setPadding(0,wideLayout?dp(4):dp(10),wideLayout?dp(4):dp(8),wideLayout?dp(4):dp(10));
         details.setTag("task:"+task.id);
-        TextView label=text(task.title,19,task.done?MUTED:INK,true);
+        TextView label=text(task.title,wideLayout?16:19,task.done?MUTED:INK,true);
+        if (wideLayout) { label.setMaxLines(1); label.setEllipsize(TextUtils.TruncateAt.END); }
         if (task.done) label.setPaintFlags(label.getPaintFlags()|android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
         details.addView(label);
         int accent=task.done?doneColor():todoColor();
-        TextView time=text(format(task.dueAt,"dd/MM/yyyy")+"  ·  "+format(task.dueAt,"HH:mm"),17,accent,true);
-        time.setPadding(0,dp(6),0,dp(4)); details.addView(time);
         boolean overdue=!task.done && task.dueAt<System.currentTimeMillis();
+        String when=wideLayout?format(task.dueAt,"EEE dd/MM · HH:mm"):format(task.dueAt,"dd/MM/yyyy")+"  ·  "+format(task.dueAt,"HH:mm");
+        if (wideLayout && overdue) when+="  ·  EN RETARD";
+        TextView time=text(when,wideLayout?14:17,overdue?RED:accent,true);
+        time.setPadding(0,wideLayout?dp(2):dp(6),0,wideLayout?0:dp(4)); details.addView(time);
+
         int attachmentCount=0;
         try { attachmentCount=store.listAttachments(task.id).size(); } catch (RuntimeException ignored) {}
-        TextView kind=text((task.appointment?"Rendez-vous":"Tâche")+(overdue?" · En retard":""),15,overdue?RED:MUTED,false);
-        details.addView(kind);
-        Button dossier=button(attachmentCount==0?"📎  Dossier":"📎  Dossier ("+attachmentCount+")",false);
-        dossier.setTextSize(15); dossier.setMinHeight(dp(44)); dossier.setMinimumHeight(dp(44));
-        LinearLayout.LayoutParams dp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT);
-        dp.topMargin=dp(7); details.addView(dossier,dp);
-        dossier.setOnClickListener(v->startActivity(new Intent(this,TaskDetailActivity.class).putExtra(TaskDetailActivity.EXTRA_TASK_ID,task.id)));
+        if (!wideLayout) {
+            TextView kind=text((task.appointment?"Rendez-vous":"Tâche")+(overdue?" · En retard":""),15,overdue?RED:MUTED,false);
+            details.addView(kind);
+            Button dossier=button(attachmentCount==0?"📎  Dossier":"📎  Dossier ("+attachmentCount+")",false);
+            dossier.setTextSize(15); dossier.setMinHeight(dp(44)); dossier.setMinimumHeight(dp(44));
+            LinearLayout.LayoutParams dossierParams=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT);
+            dossierParams.topMargin=dp(7); details.addView(dossier,dossierParams);
+            dossier.setOnClickListener(v->startActivity(new Intent(this,TaskDetailActivity.class).putExtra(TaskDetailActivity.EXTRA_TASK_ID,task.id)));
+        }
         details.setBackground(new RippleDrawable(ColorStateList.valueOf(0x16174ccb),null,shape(WHITE,10,WHITE)));
         details.setClickable(true); details.setFocusable(true);
-        details.setContentDescription("Modifier : "+task.title+". "+format(task.dueAt,"d MMMM yyyy 'à' HH:mm")+". "+kind.getText());
+        details.setContentDescription("Modifier : "+task.title+". "+format(task.dueAt,"d MMMM yyyy 'à' HH:mm"));
         details.setOnClickListener(v->openEditor(task,null));
         row.addView(details,new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1));
+
+        if (wideLayout) {
+            Button dossier=button(attachmentCount==0?"📎":"📎 "+attachmentCount,false);
+            dossier.setTextSize(13); dossier.setMinHeight(dp(40)); dossier.setMinimumHeight(dp(40));
+            dossier.setPadding(dp(7),dp(4),dp(7),dp(4));
+            dossier.setOnClickListener(v->startActivity(new Intent(this,TaskDetailActivity.class).putExtra(TaskDetailActivity.EXTRA_TASK_ID,task.id)));
+            row.addView(dossier,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,dp(44)));
+        }
         return row;
     }
 
@@ -458,8 +490,8 @@ public final class MainActivity extends Activity {
     private Button button(String label,boolean primary) {
         Button b=new Button(this); b.setText(label); b.setTextSize(17); b.setAllCaps(false);
         b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));
-        b.setMinHeight(dp(54)); b.setMinimumHeight(dp(54)); b.setMinWidth(0); b.setMinimumWidth(0);
-        b.setPadding(dp(14),dp(12),dp(14),dp(12));
+        b.setMinHeight(dp(wideLayout?48:54)); b.setMinimumHeight(dp(wideLayout?48:54)); b.setMinWidth(0); b.setMinimumWidth(0);
+        b.setPadding(dp(wideLayout?10:14),dp(wideLayout?8:12),dp(wideLayout?10:14),dp(wideLayout?8:12));
         int fill=primary?addColor():WHITE;
         b.setTextColor(primary?contrastText(fill):INK);
         b.setBackground(new RippleDrawable(ColorStateList.valueOf(primary?0x33ffffff:0x16174ccb),

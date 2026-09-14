@@ -3,6 +3,7 @@ package fr.manubotelho.mestaches;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlarmManager;
+import android.app.NotificationManager;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -15,6 +16,7 @@ import android.widget.Toast;
 public final class PermissionActivity extends Activity {
     private static final int NOTIFICATION_PERMISSION = 7001;
     private static final int EXACT_ALARM_ACCESS = 7002;
+    private static final int FULL_SCREEN_ACCESS = 7003;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -23,7 +25,7 @@ public final class PermissionActivity extends Activity {
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION);
         } else {
-            ensureExactAlarmThenOpen();
+            ensureExactAlarmThenFullScreen();
         }
     }
 
@@ -33,11 +35,11 @@ public final class PermissionActivity extends Activity {
             if (grantResults.length == 0 || grantResults[0] != PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(this, "Autorise les notifications pour recevoir tes rappels.", Toast.LENGTH_LONG).show();
             }
-            ensureExactAlarmThenOpen();
+            ensureExactAlarmThenFullScreen();
         }
     }
 
-    private void ensureExactAlarmThenOpen() {
+    private void ensureExactAlarmThenFullScreen() {
         if (Build.VERSION.SDK_INT >= 31) {
             AlarmManager manager = getSystemService(AlarmManager.class);
             if (manager != null && !manager.canScheduleExactAlarms()) {
@@ -49,9 +51,25 @@ public final class PermissionActivity extends Activity {
                             Uri.parse("package:" + getPackageName()));
                     startActivityForResult(settings, EXACT_ALARM_ACCESS);
                     return;
-                } catch (ActivityNotFoundException ignored) {
-                    // Si Samsung ne propose pas cet écran, les rappels utilisent le mode de secours Android.
-                }
+                } catch (ActivityNotFoundException ignored) {}
+            }
+        }
+        ensureFullScreenThenOpen();
+    }
+
+    private void ensureFullScreenThenOpen() {
+        if (Build.VERSION.SDK_INT >= 34) {
+            NotificationManager manager=getSystemService(NotificationManager.class);
+            if (manager!=null && !manager.canUseFullScreenIntent()) {
+                try {
+                    Toast.makeText(this,
+                            "Active « Notifications plein écran » pour voir la tâche directement sur l’écran verrouillé.",
+                            Toast.LENGTH_LONG).show();
+                    Intent settings=new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                            Uri.parse("package:"+getPackageName()));
+                    startActivityForResult(settings,FULL_SCREEN_ACCESS);
+                    return;
+                } catch (ActivityNotFoundException ignored) {}
             }
         }
         finishSetup();
@@ -59,7 +77,11 @@ public final class PermissionActivity extends Activity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == EXACT_ALARM_ACCESS) finishSetup();
+        if (requestCode == EXACT_ALARM_ACCESS) {
+            ensureFullScreenThenOpen();
+        } else if (requestCode == FULL_SCREEN_ACCESS) {
+            finishSetup();
+        }
     }
 
     private void finishSetup() {

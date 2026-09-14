@@ -128,6 +128,11 @@ final class TaskStore extends SQLiteOpenHelper {
         }
         return result;
     }
+    void updateAttachment(long id,String kind,String label,String value,String mimeType) {
+        ContentValues values=new ContentValues();
+        values.put("kind",kind); values.put("label",label); values.put("value",value); values.put("mime_type",mimeType);
+        getWritableDatabase().update("attachments",values,"id=?",new String[]{Long.toString(id)});
+    }
     void deleteAttachment(long id) {
         getWritableDatabase().delete("attachments","id=?",new String[]{Long.toString(id)});
     }

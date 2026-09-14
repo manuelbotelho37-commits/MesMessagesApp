@@ -10,7 +10,10 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.ContactsContract;
+import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.text.InputType;
 import android.view.View;
@@ -28,14 +31,13 @@ import java.util.Locale;
 
 public final class TaskDetailActivity extends Activity {
     public static final String EXTRA_TASK_ID="task_id";
-    private static final int PICK_PHOTO=6001, PICK_FILE=6002;
+    private static final int PICK_PHOTO=6001, PICK_FILE=6002, PICK_MAIL_FILE=6003, PICK_CONTACT=6004;
     private static final int INK=0xff152442, MUTED=0xff526078, BLUE=0xff174ccb,
             BORDER=0xffdce3ef, BG=0xfff4f7fc, WHITE=Color.WHITE, RED=0xffa53223;
     private final Locale FR=Locale.FRANCE;
     private TaskStore store;
     private long taskId;
     private LinearLayout content;
-    private String pendingKind;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -84,7 +86,7 @@ public final class TaskDetailActivity extends Activity {
 
         List<TaskStore.Attachment> attachments=store.listAttachments(taskId);
         if (attachments.isEmpty()) {
-            TextView empty=text("Aucun élément pour le moment. Ajoute une note, un mail client, une photo, un fichier, un lien, un contact ou une adresse.",16,MUTED,false);
+            TextView empty=text("Aucun élément pour le moment. Ajoute une note, un mail client, une photo, un fichier, un lien, un contact ou un lieu.",16,MUTED,false);
             empty.setPadding(0,dp(4),0,dp(18)); content.addView(empty);
             return;
         }
@@ -102,9 +104,8 @@ public final class TaskDetailActivity extends Activity {
             String value=item.value.length()>2?item.value.substring(2):item.label;
             CheckBox cb=new CheckBox(this); cb.setText(value); cb.setTextSize(17); cb.setTextColor(INK); cb.setChecked(checked);
             cb.setButtonTintList(android.content.res.ColorStateList.valueOf(BLUE));
-            cb.setOnCheckedChangeListener((b,isChecked)->{
-                store.updateAttachment(item.id,item.kind,item.label,(isChecked?"1|":"0|")+value,item.mimeType);
-            });
+            cb.setOnCheckedChangeListener((b,isChecked)->
+                    store.updateAttachment(item.id,item.kind,item.label,(isChecked?"1|":"0|")+value,item.mimeType));
             card.addView(cb);
         } else {
             TextView label=text(icon(item.kind)+"  "+item.label,17,INK,true); card.addView(label);
@@ -126,19 +127,32 @@ public final class TaskDetailActivity extends Activity {
     }
 
     private void showAddMenu() {
-        String[] choices={"✅ Sous-tâche à cocher","👤 Client / contact","📝 Note","✉️ Mail client","🌐 Lien Internet / article","📷 Photo","📎 Fichier / document","📞 Téléphone","📧 Adresse e-mail","📍 Adresse / lieu"};
+        String[] choices={
+                "✅ Sous-tâche à cocher",
+                "👤 Client / contact",
+                "📝 Note",
+                "✉️ Mail client (texte)",
+                "📨 Mail téléchargé / pièce jointe",
+                "🌐 Internet / article",
+                "📷 Photo - galerie",
+                "📎 Fichier / document",
+                "📞 Téléphone - répertoire",
+                "📧 Adresse e-mail",
+                "📍 Lieu - Google Maps"
+        };
         new AlertDialog.Builder(this).setTitle("Ajouter à cette tâche").setItems(choices,(d,which)->{
             switch(which) {
                 case 0: askText("Sous-tâche","Ex. Rappeler le géomètre","check",true); break;
                 case 1: askText("Client / contact","Nom, société, informations utiles","contact",true); break;
                 case 2: askText("Note","Écris ce que tu ne veux pas oublier","note",true); break;
                 case 3: askText("Mail client","Colle ici le mail reçu ou les points importants","mail",true); break;
-                case 4: askText("Lien Internet / article","https://…","link",false); break;
-                case 5: pickDocument("photo",PICK_PHOTO,"image/*"); break;
-                case 6: pickDocument("file",PICK_FILE,"*/*"); break;
-                case 7: askText("Téléphone","Numéro du client","phone",false); break;
-                case 8: askText("Adresse e-mail","client@exemple.fr","email",false); break;
-                case 9: askText("Adresse / lieu","Adresse du terrain ou du rendez-vous","address",true); break;
+                case 4: pickDocument("mailfile",PICK_MAIL_FILE,"*/*"); break;
+                case 5: openInternet(); break;
+                case 6: pickPhoto(); break;
+                case 7: pickDocument("file",PICK_FILE,"*/*"); break;
+                case 8: pickContact(); break;
+                case 9: askText("Adresse e-mail","client@exemple.fr","email",false); break;
+                case 10: openGoogleMaps(); break;
             }
         }).show();
     }
@@ -154,31 +168,102 @@ public final class TaskDetailActivity extends Activity {
         dialog.setOnShowListener(x->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
             String value=input.getText().toString().trim();
             if (value.isEmpty()) { input.setError("Ajoute une information."); return; }
-            String label=title;
             String stored=value;
             if ("check".equals(kind)) stored="0|"+value;
-            store.addAttachment(taskId,kind,label,stored,null);
+            store.addAttachment(taskId,kind,title,stored,null);
             dialog.dismiss(); refresh();
         }));
         dialog.show();
     }
 
+    private void pickPhoto() {
+        Intent intent;
+        if (Build.VERSION.SDK_INT>=33) {
+            intent=new Intent(MediaStore.ACTION_PICK_IMAGES);
+            intent.setType("image/*");
+        } else {
+            intent=new Intent(Intent.ACTION_PICK,MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+            intent.setType("image/*");
+        }
+        startActivityForResult(intent,PICK_PHOTO);
+    }
+
     private void pickDocument(String kind,int request,String type) {
-        pendingKind=kind;
         Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(type);
+        if ("mailfile".equals(kind)) {
+            intent.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"message/rfc822","application/vnd.ms-outlook","application/octet-stream","text/plain"});
+        }
         startActivityForResult(intent,request);
+    }
+
+    private void pickContact() {
+        try {
+            Intent intent=new Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI);
+            startActivityForResult(intent,PICK_CONTACT);
+        } catch (ActivityNotFoundException ex) {
+            Toast.makeText(this,"Le répertoire téléphonique n’est pas disponible.",Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void openInternet() {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://www.google.com")));
+            Toast.makeText(this,"Depuis le navigateur, utilise Partager → Mes tâches Manu pour rattacher un article.",Toast.LENGTH_LONG).show();
+        } catch (ActivityNotFoundException ex) {
+            Toast.makeText(this,"Aucun navigateur Internet n’est disponible.",Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void openGoogleMaps() {
+        Intent maps=new Intent(Intent.ACTION_VIEW,Uri.parse("geo:0,0?q="));
+        maps.setPackage("com.google.android.apps.maps");
+        try {
+            startActivity(maps);
+            Toast.makeText(this,"Dans Google Maps, utilise Partager pour rattacher un lieu à la tâche.",Toast.LENGTH_LONG).show();
+        } catch (ActivityNotFoundException ex) {
+            try { startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://www.google.com/maps"))); }
+            catch (ActivityNotFoundException ignored) { Toast.makeText(this,"Google Maps n’est pas disponible.",Toast.LENGTH_LONG).show(); }
+        }
     }
 
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
         super.onActivityResult(requestCode,resultCode,data);
         if (resultCode!=RESULT_OK || data==null || data.getData()==null) return;
         Uri uri=data.getData();
-        try { getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION); }
-        catch (SecurityException ignored) {}
+
+        if (requestCode==PICK_CONTACT) {
+            savePickedContact(uri);
+            return;
+        }
+
+        try {
+            int flags=data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
+            if (flags!=0) getContentResolver().takePersistableUriPermission(uri,flags);
+        } catch (SecurityException ignored) {}
+
         String mime=getContentResolver().getType(uri);
         String name=fileName(uri);
-        store.addAttachment(taskId,pendingKind==null?"file":pendingKind,name,uri.toString(),mime);
+        String kind=requestCode==PICK_PHOTO?"photo":requestCode==PICK_MAIL_FILE?"mailfile":"file";
+        String label="mailfile".equals(kind)?"Mail téléchargé · "+name:name;
+        store.addAttachment(taskId,kind,label,uri.toString(),mime);
         refresh();
+    }
+
+    private void savePickedContact(Uri uri) {
+        try (Cursor c=getContentResolver().query(uri,
+                new String[]{ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,ContactsContract.CommonDataKinds.Phone.NUMBER},
+                null,null,null)) {
+            if (c!=null && c.moveToFirst()) {
+                String name=c.getString(0);
+                String number=c.getString(1);
+                if (number!=null && !number.trim().isEmpty()) {
+                    store.addAttachment(taskId,"phone",name==null||name.trim().isEmpty()?"Téléphone":name.trim(),number.trim(),null);
+                    refresh();
+                    return;
+                }
+            }
+        } catch (RuntimeException ignored) {}
+        Toast.makeText(this,"Je n’ai pas pu récupérer ce numéro.",Toast.LENGTH_LONG).show();
     }
 
     private void openItem(TaskStore.Attachment item) {
@@ -189,12 +274,16 @@ public final class TaskDetailActivity extends Activity {
                     String url=item.value;
                     if (!url.startsWith("http://")&&!url.startsWith("https://")) url="https://"+url;
                     intent=new Intent(Intent.ACTION_VIEW,Uri.parse(url)); break;
-                case "phone": intent=new Intent(Intent.ACTION_DIAL,Uri.parse("tel:"+item.value)); break;
+                case "phone": intent=new Intent(Intent.ACTION_DIAL,Uri.parse("tel:"+Uri.encode(item.value))); break;
                 case "email": intent=new Intent(Intent.ACTION_SENDTO,Uri.parse("mailto:"+item.value)); break;
-                case "address": intent=new Intent(Intent.ACTION_VIEW,Uri.parse("geo:0,0?q="+Uri.encode(item.value))); break;
+                case "address":
+                    intent=new Intent(Intent.ACTION_VIEW,Uri.parse("geo:0,0?q="+Uri.encode(item.value)));
+                    intent.setPackage("com.google.android.apps.maps"); break;
                 case "photo":
                 case "file":
-                    intent=new Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(item.value),item.mimeType==null?"*/*":item.mimeType)
+                case "mailfile":
+                    intent=new Intent(Intent.ACTION_VIEW)
+                            .setDataAndType(Uri.parse(item.value),item.mimeType==null?"*/*":item.mimeType)
                             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION); break;
                 default:
                     new AlertDialog.Builder(this).setTitle(item.label).setMessage(cleanValue(item)).setPositiveButton("Fermer",null).show(); return;
@@ -211,12 +300,13 @@ public final class TaskDetailActivity extends Activity {
     }
     private String preview(TaskStore.Attachment item) {
         if ("photo".equals(item.kind)||"file".equals(item.kind)) return "Appuie pour ouvrir";
+        if ("mailfile".equals(item.kind)) return "Appuie pour ouvrir le mail téléchargé";
         return cleanValue(item);
     }
     private String icon(String kind) {
         switch(kind) {
             case "contact": return "👤"; case "note": return "📝"; case "mail": return "✉️";
-            case "link": return "🌐"; case "photo": return "📷"; case "file": return "📎";
+            case "mailfile": return "📨"; case "link": return "🌐"; case "photo": return "📷"; case "file": return "📎";
             case "phone": return "📞"; case "email": return "📧"; case "address": return "📍";
             default: return "•";
         }

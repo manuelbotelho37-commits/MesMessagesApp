@@ -13,7 +13,6 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
 import android.text.InputType;
-import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -52,12 +51,14 @@ public final class TaskDetailActivity extends Activity {
         root.setPadding(dp(18),dp(18),dp(18),dp(18));
         Button back=button("←  Retour",false); back.setOnClickListener(v->finish());
         root.addView(back,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT));
-        ScrollView scroll=new ScrollView(this); content=column(); content.setPadding(0,dp(12),0,dp(24));
+
+        ScrollView scroll=new ScrollView(this);
+        scroll.setClipToPadding(false);
+        scroll.setPadding(0,0,0,dp(90));
+        content=column();
+        content.setPadding(0,dp(12),0,dp(24));
         scroll.addView(content,new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
         root.addView(scroll,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,0,1));
-        Button add=button("+  Ajouter un élément",true); add.setTextSize(19);
-        add.setOnClickListener(v->showAddMenu());
-        root.addView(add,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
         setContentView(root);
     }
 
@@ -65,15 +66,26 @@ public final class TaskDetailActivity extends Activity {
         TaskStore.Task task=store.get(taskId);
         if (task==null) { finish(); return; }
         content.removeAllViews();
+
         TextView title=text(task.title,27,INK,true); title.setPadding(0,dp(6),0,dp(6)); content.addView(title);
         TextView date=text(new SimpleDateFormat("EEEE d MMMM yyyy 'à' HH:mm",FR).format(new java.util.Date(task.dueAt)),17,BLUE,true);
         content.addView(date);
         TextView kind=text(task.appointment?"Rendez-vous":"Tâche",15,MUTED,false); kind.setPadding(0,dp(3),0,dp(18)); content.addView(kind);
+
         TextView heading=text("Tout ce qui est lié à cette tâche",19,INK,true); heading.setPadding(0,0,0,dp(10)); content.addView(heading);
+
+        Button add=button("+  Ajouter un élément",true);
+        add.setTextSize(19);
+        add.setOnClickListener(v->showAddMenu());
+        LinearLayout.LayoutParams addParams=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
+        addParams.topMargin=dp(4);
+        addParams.bottomMargin=dp(18);
+        content.addView(add,addParams);
+
         List<TaskStore.Attachment> attachments=store.listAttachments(taskId);
         if (attachments.isEmpty()) {
             TextView empty=text("Aucun élément pour le moment. Ajoute une note, un mail client, une photo, un fichier, un lien, un contact ou une adresse.",16,MUTED,false);
-            empty.setPadding(0,dp(8),0,dp(18)); content.addView(empty);
+            empty.setPadding(0,dp(4),0,dp(18)); content.addView(empty);
             return;
         }
         for (TaskStore.Attachment item:attachments) content.addView(itemView(item));

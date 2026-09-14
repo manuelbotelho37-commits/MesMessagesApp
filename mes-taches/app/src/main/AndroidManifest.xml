@@ -29,6 +29,11 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize"/>
 
+        <activity
+            android:name=".TaskDetailActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"/>
+
         <receiver
             android:name=".ReminderReceiver"
             android:exported="false"/>

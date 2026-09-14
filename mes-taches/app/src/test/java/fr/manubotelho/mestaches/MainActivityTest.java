@@ -22,6 +22,18 @@ import org.robolectric.shadows.ShadowAlertDialog;
 public class MainActivityTest {
     private Context context;
     private ActivityController<MainActivity> controller;
+    private android.widget.TimePicker findTimePicker(android.view.View view) {
+        if (view instanceof android.widget.TimePicker) return (android.widget.TimePicker)view;
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group=(android.view.ViewGroup)view;
+            for (int i=0;i<group.getChildCount();i++) {
+                android.widget.TimePicker found=findTimePicker(group.getChildAt(i));
+                if (found!=null) return found;
+            }
+        }
+        return null;
+    }
+    private void idle() { org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle(); }
     @Before public void before() {
         context=ApplicationProvider.getApplicationContext(); context.deleteDatabase(TaskStore.NAME);
         controller=Robolectric.buildActivity(MainActivity.class).setup().visible();
@@ -32,46 +44,56 @@ public class MainActivityTest {
     }
     @Test public void addCompleteReopenAndUncheckThroughTheScreen() {
         MainActivity activity=controller.get();
-        activity.findViewById(MainActivity.ADD).performClick();
+        activity.findViewById(MainActivity.ADD).performClick(); idle();
         AlertDialog dialog=ShadowAlertDialog.getLatestAlertDialog();
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick(); idle();
         assertTrue(dialog.isShowing());
         ((EditText)dialog.findViewById(MainActivity.TITLE)).setText("Téléphoner au client");
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick(); idle();
         assertFalse(dialog.isShowing());
         TaskStore store=new TaskStore(context);
         assertEquals(1,store.list(false).size());
         long id=store.list(false).get(0).id;
         CheckBox check=activity.getWindow().getDecorView().findViewWithTag("check:"+id);
-        assertNotNull(check); check.performClick(); assertTrue(store.get(id).done);
+        assertNotNull(check); check.performClick(); idle(); assertTrue(store.get(id).done);
         controller.pause().stop().destroy();
         controller=Robolectric.buildActivity(MainActivity.class).setup().visible();
-        activity=controller.get(); activity.findViewById(MainActivity.DONE).performClick();
+        activity=controller.get(); activity.findViewById(MainActivity.DONE).performClick(); idle();
         CheckBox finished=activity.getWindow().getDecorView().findViewWithTag("check:"+id);
         assertNotNull(finished); assertTrue(finished.isChecked());
-        finished.performClick(); assertFalse(store.get(id).done);
+        finished.performClick(); idle(); assertFalse(store.get(id).done);
         store.close();
     }
     @Test public void datePickerKeepsTheRequestedLeapDayAndDraftSurvivesRecreation() {
         MainActivity activity=controller.get();
-        activity.findViewById(MainActivity.ADD).performClick();
+        activity.findViewById(MainActivity.ADD).performClick(); idle();
         AlertDialog editor=ShadowAlertDialog.getLatestAlertDialog();
         ((EditText)editor.findViewById(MainActivity.TITLE)).setText("Préparer le dossier");
-        editor.findViewById(MainActivity.DATE).performClick();
+        editor.findViewById(MainActivity.DATE).performClick(); idle();
         DatePickerDialog picker=(DatePickerDialog)ShadowAlertDialog.getLatestAlertDialog();
         picker.getDatePicker().updateDate(2028,1,29);
-        picker.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        picker.getButton(AlertDialog.BUTTON_POSITIVE).performClick(); idle();
         assertTrue(((android.widget.Button)editor.findViewById(MainActivity.DATE)).getText().toString().contains("2028"));
+        editor.findViewById(MainActivity.TIME).performClick(); idle();
+        android.app.TimePickerDialog timeDialog=(android.app.TimePickerDialog)ShadowAlertDialog.getLatestAlertDialog();
+        android.widget.TimePicker timePicker=findTimePicker(timeDialog.getWindow().getDecorView());
+        assertNotNull(timePicker);
+        timePicker.setHour(17); timePicker.setMinute(45);
+        timeDialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick(); idle();
+        assertEquals("17:45",((android.widget.Button)editor.findViewById(MainActivity.TIME)).getText().toString());
         Bundle state=new Bundle();
         controller.saveInstanceState(state).pause().stop().destroy();
-        controller=Robolectric.buildActivity(MainActivity.class).create(state).start().resume().visible();
+        controller=Robolectric.buildActivity(MainActivity.class).create(state).start().resume().visible(); idle();
         AlertDialog restored=ShadowAlertDialog.getLatestAlertDialog();
         assertEquals("Préparer le dossier",((EditText)restored.findViewById(MainActivity.TITLE)).getText().toString());
-        restored.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        restored.getButton(AlertDialog.BUTTON_POSITIVE).performClick(); idle();
         TaskStore store=new TaskStore(context);
         java.time.LocalDate day=java.time.Instant.ofEpochMilli(store.list(false).get(0).dueAt)
                 .atZone(java.time.ZoneId.systemDefault()).toLocalDate();
         assertEquals(java.time.LocalDate.of(2028,2,29),day);
+        java.time.LocalTime time=java.time.Instant.ofEpochMilli(store.list(false).get(0).dueAt)
+                .atZone(java.time.ZoneId.systemDefault()).toLocalTime();
+        assertEquals(java.time.LocalTime.of(17,45),time);
         store.close();
     }
 }

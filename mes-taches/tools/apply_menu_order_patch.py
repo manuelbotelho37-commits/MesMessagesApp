@@ -13,45 +13,12 @@ def replace_once(path: Path, old: str, new: str, label: str):
         raise SystemExit(f"Patch introuvable: {label} dans {path}")
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
-# READ_SMS ne doit pas rendre la téléphonie obligatoire pour les grands écrans.
 replace_once(
     MANIFEST,
     '    <uses-permission android:name="android.permission.READ_SMS"/>',
     '    <uses-permission android:name="android.permission.READ_SMS"/>\n    <uses-feature android:name="android.hardware.telephony" android:required="false"/>',
     'uses-feature telephony facultatif',
 )
-
-old_menu = '''    private void showAddMenu() {
-        String[] choices={
-                "✅ Sous-tâche à cocher",
-                "👤 Client / contact",
-                "📝 Note",
-                "✉️ Importer un mail - Gmail / Outlook",
-                "💬 Texto / SMS - dernier reçu",
-                "🌐 Internet / article",
-                "📷 Photo - galerie",
-                "📎 Fichier / document",
-                "📞 Téléphone - répertoire",
-                "📧 Adresse e-mail",
-                "📍 Lieu - Google Maps"
-        };
-        new AlertDialog.Builder(this).setTitle("Ajouter à cette tâche").setItems(choices,(d,which)->{
-            switch(which) {
-                case 0: askText("Sous-tâche","Ex. Rappeler le géomètre","check",true); break;
-                case 1: askText("Client / contact","Nom, société, informations utiles","contact",true); break;
-                case 2: askText("Note","Écris ce que tu ne veux pas oublier","note",true); break;
-                case 3: showImportMail(); break;
-                case 4: importLastSms(); break;
-                case 5: openInternet(); break;
-                case 6: pickPhoto(); break;
-                case 7: pickDocument("file",PICK_FILE,"*/*"); break;
-                case 8: pickContact(); break;
-                case 9: askText("Adresse e-mail","client@exemple.fr","email",false); break;
-                case 10: openGoogleMaps(); break;
-            }
-        }).show();
-    }
-'''
 
 new_menu = '''    private static final String MENU_PREFS="task_detail_menu";
     private static final String MENU_ORDER="add_order";
@@ -160,16 +127,22 @@ new_menu = '''    private static final String MENU_PREFS="task_detail_menu";
                 .setTitle("Choisis ton ordre")
                 .setMessage("Utilise ↑ et ↓. Ton ordre sera gardé pour toutes les tâches.")
                 .setView(box)
-                .setNeutralButton("Ordre d’origine",(d,w)->{
-                    getSharedPreferences(MENU_PREFS,MODE_PRIVATE).edit().remove(MENU_ORDER).apply();
-                })
+                .setNeutralButton("Ordre d’origine",(d,w)->getSharedPreferences(MENU_PREFS,MODE_PRIVATE).edit().remove(MENU_ORDER).apply())
                 .setPositiveButton("Terminé",null)
                 .create();
         box.setTag(dialog);
         dialog.show();
     }
+
 '''
 
-replace_once(DETAIL, old_menu, new_menu, 'menu réorganisable')
+text = DETAIL.read_text(encoding="utf-8")
+if 'private static final String MENU_PREFS="task_detail_menu";' not in text:
+    start = text.find('    private void showAddMenu() {')
+    end = text.find('    private void askText(', start)
+    if start < 0 or end < 0:
+        raise SystemExit(f"Bloc showAddMenu introuvable dans {DETAIL}")
+    text = text[:start] + new_menu + text[end:]
+    DETAIL.write_text(text, encoding="utf-8")
 
 print("Patch ordre personnalisable du menu appliqué")

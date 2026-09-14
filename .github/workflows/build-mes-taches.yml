@@ -31,6 +31,8 @@ jobs:
           python3 mes-taches/tools/apply_notification_sms_bridge_fix.py
           python3 mes-taches/tools/apply_sms_clipboard_import.py
           python3 mes-taches/tools/apply_lock_screen_notification_fix.py
+          python3 mes-taches/tools/apply_compact_lock_overlay.py
+          python3 mes-taches/tools/apply_sms_clipboard_focus_fix.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

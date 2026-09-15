@@ -19,7 +19,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -92,16 +94,16 @@ public final class MailViewerActivity extends Activity {
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(0,dp(18),0,dp(30));
 
-        TextView title=text(mail.subject==null||mail.subject.trim().isEmpty()?"Sans objet":mail.subject.trim(),24,INK,true);
+        TextView title=text(empty(mail.subject)?"Sans objet":mail.subject.trim(),24,INK,true);
         title.setPadding(0,0,0,dp(10));
         content.addView(title);
 
-        if (mail.from!=null&&!mail.from.trim().isEmpty()) {
+        if (!empty(mail.from)) {
             TextView from=text("De : "+mail.from.trim(),16,BLUE,true);
             from.setPadding(0,0,0,dp(4));
             content.addView(from);
         }
-        if (mail.date!=null&&!mail.date.trim().isEmpty()) {
+        if (!empty(mail.date)) {
             TextView date=text(mail.date.trim(),14,MUTED,false);
             date.setPadding(0,0,0,dp(16));
             content.addView(date);
@@ -112,14 +114,11 @@ public final class MailViewerActivity extends Activity {
         body.setLineSpacing(0,1.08f);
         body.setPadding(0,dp(4),0,dp(24));
         if (mail.html) {
-            String cleaned=mail.body
-                    .replaceAll("(?is)<script\\b[^>]*>.*?</script>","")
-                    .replaceAll("(?is)<style\\b[^>]*>.*?</style>","")
-                    .replaceAll("(?is)<img\\b[^>]*>","");
+            String cleaned=cleanHtml(mail.body);
             Spanned styled=Html.fromHtml(cleaned,Html.FROM_HTML_MODE_LEGACY);
             body.setText(styled);
         } else {
-            body.setText(mail.body==null?"":mail.body.trim());
+            body.setText(cleanPlain(mail.body));
         }
         content.addView(body,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -138,11 +137,11 @@ public final class MailViewerActivity extends Activity {
         String[] chosen=findBody(root);
         mail.body=chosen[0];
         mail.html="html".equals(chosen[1]);
-        if (mail.body==null || mail.body.trim().isEmpty()) {
+        if (empty(mail.body)) {
             mail.body="Le contenu de ce mail n’a pas pu être extrait proprement.";
             mail.html=false;
         }
-        if (mail.subject==null || mail.subject.trim().isEmpty()) {
+        if (empty(mail.subject)) {
             String fallback=getIntent().getStringExtra(EXTRA_LABEL);
             mail.subject=fallback==null?"Mail":fallback.replaceFirst("^Mail (Gmail|Outlook) · ","");
         }
@@ -170,38 +169,88 @@ public final class MailViewerActivity extends Activity {
         String lower=contentType.toLowerCase(Locale.ROOT);
         if (lower.startsWith("multipart/")) {
             String boundary=param(contentType,"boundary");
-            if (boundary!=null&&!boundary.isEmpty()) {
+            if (!empty(boundary)) {
                 String marker="--"+boundary;
                 String[] chunks=part.body.split(Pattern.quote(marker));
-                String[] html=null;
+                String[] bestHtml=null;
+                String[] bestPlain=null;
                 for (String chunk:chunks) {
                     String c=chunk.trim();
                     if (c.isEmpty() || c.equals("--")) continue;
                     if (c.endsWith("--")) c=c.substring(0,c.length()-2);
                     MimePart child=parsePart(c);
                     String[] found=findBody(child);
-                    if (found[0]!=null && !found[0].trim().isEmpty()) {
-                        if ("plain".equals(found[1])) return found;
-                        if (html==null) html=found;
-                    }
+                    if (empty(found[0])) continue;
+                    if ("html".equals(found[1]) && bestHtml==null) bestHtml=found;
+                    if ("plain".equals(found[1]) && bestPlain==null) bestPlain=found;
                 }
-                if (html!=null) return html;
+                if (bestHtml!=null) return bestHtml;
+                if (bestPlain!=null) return bestPlain;
             }
         }
         if (lower.startsWith("text/plain") || lower.startsWith("text/html")) {
             byte[] decoded=decodeTransfer(part.body,value(part.headers,"content-transfer-encoding",""));
             String charset=param(contentType,"charset");
-            Charset cs=StandardCharsets.UTF_8;
-            if (charset!=null) {
-                try { cs=Charset.forName(charset.replace("\"","").trim()); } catch (Exception ignored) {}
-            }
-            String body=new String(decoded,cs);
-            if (looksMojibake(body)) {
-                try { body=new String(body.getBytes(StandardCharsets.ISO_8859_1),StandardCharsets.UTF_8); } catch (Exception ignored) {}
-            }
+            String body=decodeTextBest(decoded,charset);
             return new String[]{body,lower.startsWith("text/html")?"html":"plain"};
         }
         return new String[]{"",""};
+    }
+
+    private String decodeTextBest(byte[] bytes,String declared) {
+        List<Charset> candidates=new ArrayList<>();
+        if (!empty(declared)) {
+            try { candidates.add(Charset.forName(declared.replace("\"","").trim())); } catch (Exception ignored) {}
+        }
+        addCharset(candidates,StandardCharsets.UTF_8);
+        try { addCharset(candidates,Charset.forName("windows-1252")); } catch (Exception ignored) {}
+        addCharset(candidates,StandardCharsets.ISO_8859_1);
+
+        String best="";
+        int bestScore=Integer.MAX_VALUE;
+        for (Charset cs:candidates) {
+            String s=new String(bytes,cs);
+            int score=textScore(s);
+            if (score<bestScore) { best=s; bestScore=score; }
+        }
+        String repaired=repairUtf8Mojibake(best);
+        if (textScore(repaired)<bestScore) best=repaired;
+        return best;
+    }
+
+    private void addCharset(List<Charset> list,Charset cs) {
+        for (Charset existing:list) if (existing.name().equalsIgnoreCase(cs.name())) return;
+        list.add(cs);
+    }
+
+    private int textScore(String s) {
+        if (s==null) return Integer.MAX_VALUE/2;
+        int score=0;
+        for (int i=0;i<s.length();i++) {
+            char c=s.charAt(i);
+            if (c=='\uFFFD') score+=100;
+            else if (c<0x20 && c!='\n' && c!='\r' && c!='\t') score+=15;
+        }
+        score+=count(s,"Ã")*25;
+        score+=count(s,"Â")*20;
+        score+=count(s,"â€")*25;
+        score+=count(s,"ðŸ")*25;
+        return score;
+    }
+
+    private int count(String s,String needle) {
+        int n=0, p=0;
+        while ((p=s.indexOf(needle,p))>=0) { n++; p+=needle.length(); }
+        return n;
+    }
+
+    private String repairUtf8Mojibake(String s) {
+        if (s==null) return "";
+        if (!(s.contains("Ã")||s.contains("Â")||s.contains("â€")||s.contains("ðŸ"))) return s;
+        try {
+            String fixed=new String(s.getBytes(StandardCharsets.ISO_8859_1),StandardCharsets.UTF_8);
+            return textScore(fixed)<textScore(s)?fixed:s;
+        } catch (Exception e) { return s; }
     }
 
     private byte[] decodeTransfer(String body,String transfer) {
@@ -247,11 +296,39 @@ public final class MailViewerActivity extends Activity {
             m.appendReplacement(out,Matcher.quoteReplacement(replacement));
         }
         m.appendTail(out);
-        return out.toString().replaceAll("\\s+"," ").trim();
+        String result=repairUtf8Mojibake(out.toString()).replaceAll("\\s+"," ").trim();
+        return Html.fromHtml(result,Html.FROM_HTML_MODE_LEGACY).toString().trim();
     }
 
     private byte[] decodeHeaderQ(String s) {
         return decodeQuotedPrintable(s.replace('_',' ').getBytes(StandardCharsets.ISO_8859_1));
+    }
+
+    private String cleanHtml(String html) {
+        if (html==null) return "";
+        String s=html
+                .replaceAll("(?is)<script\\b[^>]*>.*?</script>","")
+                .replaceAll("(?is)<style\\b[^>]*>.*?</style>","")
+                .replaceAll("(?is)<head\\b[^>]*>.*?</head>","")
+                .replaceAll("(?is)<noscript\\b[^>]*>.*?</noscript>","")
+                .replaceAll("(?is)<svg\\b[^>]*>.*?</svg>","")
+                .replaceAll("(?is)<img\\b[^>]*>","");
+        return repairUtf8Mojibake(s);
+    }
+
+    private String cleanPlain(String body) {
+        if (body==null) return "";
+        String s=repairUtf8Mojibake(body);
+        s=Html.fromHtml(s,Html.FROM_HTML_MODE_LEGACY).toString();
+        s=s.replaceAll("(?im)^\\s*\\[Photo de [^\\]]+\\]\\s*$","");
+        s=s.replaceAll("(?im)^\\s*\\[https?://[^\\]]+\\](?:<[^>]*>)?\\s*$","");
+        s=s.replaceAll("(?i)<mailto:[^>]*>","");
+        s=s.replaceAll("(?i)<tel:[^>]*>","");
+        s=s.replaceAll("(?im)^\\s*https?://\\S+\\s*$","");
+        s=s.replaceAll("(?im)^\\s*mailto:\\S+\\s*$","");
+        s=s.replaceAll("[ \\t]+\\n","\\n");
+        s=s.replaceAll("\\n{3,}","\\n\\n");
+        return s.trim();
     }
 
     private String param(String contentType,String name) {
@@ -267,9 +344,7 @@ public final class MailViewerActivity extends Activity {
         return v==null?fallback:v;
     }
 
-    private boolean looksMojibake(String s) {
-        return s.contains("Ã") || s.contains("Â") || s.contains("â€") || s.contains("ðŸ");
-    }
+    private boolean empty(String s) { return s==null || s.trim().isEmpty(); }
 
     private int hex(byte b) {
         int c=b&0xff;

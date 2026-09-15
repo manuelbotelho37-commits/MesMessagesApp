@@ -13,8 +13,8 @@ android {
         applicationId 'fr.manubotelho.mestaches'
         minSdk 26
         targetSdk 35
-        versionCode 17
-        versionName '2.6-dictee-micro'
+        versionCode 18
+        versionName '2.7-mails-lisibles'
     }
     signingConfigs {
         release {

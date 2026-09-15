@@ -55,7 +55,21 @@ public class MainActivityTest {
         assertEquals(1,store.list(false).size());
         long id=store.list(false).get(0).id;
         CheckBox check=activity.getWindow().getDecorView().findViewWithTag("check:"+id);
-        assertNotNull(check); check.performClick(); idle(); assertTrue(store.get(id).done);
+        assertNotNull(check);
+
+        check.performClick(); idle();
+        AlertDialog confirm=ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(confirm); assertTrue(confirm.isShowing());
+        confirm.getButton(AlertDialog.BUTTON_NEGATIVE).performClick(); idle();
+        assertFalse(store.get(id).done);
+
+        check=activity.getWindow().getDecorView().findViewWithTag("check:"+id);
+        assertNotNull(check); check.performClick(); idle();
+        confirm=ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(confirm); assertTrue(confirm.isShowing());
+        confirm.getButton(AlertDialog.BUTTON_POSITIVE).performClick(); idle();
+        assertTrue(store.get(id).done);
+
         controller.pause().stop().destroy();
         controller=Robolectric.buildActivity(MainActivity.class).setup().visible();
         activity=controller.get(); activity.findViewById(MainActivity.DONE).performClick(); idle();

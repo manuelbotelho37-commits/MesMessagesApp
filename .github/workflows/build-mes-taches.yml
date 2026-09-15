@@ -40,6 +40,7 @@ jobs:
           python3 mes-taches/tools/apply_mail_viewer_patch.py
           python3 mes-taches/tools/apply_task_completion_confirmation.py
           python3 mes-taches/tools/apply_version_3_1.py
+          python3 mes-taches/tools/apply_productivity_3_2.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

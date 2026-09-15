@@ -38,6 +38,7 @@ jobs:
           python3 mes-taches/tools/apply_voice_dictation_patch.py
           python3 mes-taches/tools/apply_live_gmail_refresh.py
           python3 mes-taches/tools/apply_mail_viewer_patch.py
+          python3 mes-taches/tools/apply_task_completion_confirmation.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

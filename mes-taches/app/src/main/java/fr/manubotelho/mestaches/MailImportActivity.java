@@ -19,6 +19,7 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -65,19 +66,19 @@ public final class MailImportActivity extends Activity {
     private SharedPreferences prefs;
 
     private static final class MailItem {
-        String id, subject, from, when;
-        MailItem(String id,String subject,String from,String when) {
-            this.id=id; this.subject=subject; this.from=from; this.when=when;
-        }
-        String label() {
-            String s=(subject==null||subject.trim().isEmpty())?"(Sans objet)":subject.trim();
-            String f=(from==null||from.trim().isEmpty())?"Expéditeur inconnu":from.trim();
-            return when+"  ·  "+f+"\n"+s;
+        String id, subject, from, when, preview;
+        MailItem(String id,String subject,String from,String when,String preview) {
+            this.id=id;
+            this.subject=subject;
+            this.from=from;
+            this.when=when;
+            this.preview=preview;
         }
     }
 
     private static final class HttpResult {
-        final int code; final byte[] body;
+        final int code;
+        final byte[] body;
         HttpResult(int code,byte[] body) { this.code=code; this.body=body; }
         String text() { return new String(body,StandardCharsets.UTF_8); }
     }
@@ -103,7 +104,8 @@ public final class MailImportActivity extends Activity {
         TextView title=text("Importer un mail",28,INK,true);
         title.setPadding(0,dp(20),0,dp(6));
         root.addView(title);
-        TextView help=text("Choisis ta boîte. Après la première connexion, tu verras directement tes derniers mails et tu toucheras simplement celui à ajouter à la tâche.",17,MUTED,false);
+
+        TextView help=text("Choisis ta boîte. Tu verras une liste simple avec l’expéditeur, l’objet, la date et un aperçu. Appuie sur le mail à ajouter à la tâche.",17,MUTED,false);
         help.setPadding(0,0,0,dp(18));
         root.addView(help);
 
@@ -150,7 +152,7 @@ public final class MailImportActivity extends Activity {
                         else loadGmailMessages(token);
                     }
                 })
-                .addOnFailureListener(e->setStatus("Connexion Gmail à finaliser. Nous ferons l’autorisation Google ensemble."));
+                .addOnFailureListener(e->setStatus("Connexion Gmail à finaliser. Vérifie l’autorisation Google."));
     }
 
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
@@ -163,7 +165,7 @@ public final class MailImportActivity extends Activity {
                 if (token==null||token.isEmpty()) setStatus("Gmail n’a pas fourni d’autorisation.");
                 else loadGmailMessages(token);
             } catch (ApiException e) {
-                setStatus("Connexion Gmail à finaliser. Nous ferons l’autorisation Google ensemble.");
+                setStatus("Connexion Gmail impossible. Vérifie l’autorisation Google.");
             }
             return;
         }
@@ -185,7 +187,9 @@ public final class MailImportActivity extends Activity {
         setStatus("Chargement de tes derniers mails Gmail…");
         new Thread(()->{
             try {
-                JSONObject list=new JSONObject(get("https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15",token).text());
+                HttpResult listResult=get("https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15",token);
+                if (listResult.code<200 || listResult.code>=300) throw new Exception("gmail-list");
+                JSONObject list=new JSONObject(listResult.text());
                 JSONArray messages=list.optJSONArray("messages");
                 ArrayList<MailItem> items=new ArrayList<>();
                 if (messages!=null) {
@@ -193,7 +197,9 @@ public final class MailImportActivity extends Activity {
                         String id=messages.getJSONObject(i).optString("id","");
                         if (id.isEmpty()) continue;
                         String url="https://gmail.googleapis.com/gmail/v1/users/me/messages/"+id+"?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date";
-                        JSONObject m=new JSONObject(get(url,token).text());
+                        HttpResult messageResult=get(url,token);
+                        if (messageResult.code<200 || messageResult.code>=300) continue;
+                        JSONObject m=new JSONObject(messageResult.text());
                         JSONObject payload=m.optJSONObject("payload");
                         String from="", subject="";
                         if (payload!=null) {
@@ -208,7 +214,8 @@ public final class MailImportActivity extends Activity {
                         long date=0;
                         try { date=Long.parseLong(m.optString("internalDate","0")); } catch (NumberFormatException ignored) {}
                         String when=date>0?new SimpleDateFormat("dd/MM HH:mm",FR).format(new Date(date)):"";
-                        items.add(new MailItem(id,subject,from,when));
+                        String preview=m.optString("snippet","");
+                        items.add(new MailItem(id,subject,from,when,preview));
                     }
                 }
                 runOnUiThread(()->showMailList("Gmail",items,item->downloadGmailMail(token,item)));
@@ -221,22 +228,113 @@ public final class MailImportActivity extends Activity {
     private interface MailChoice { void choose(MailItem item); }
 
     private void showMailList(String provider,List<MailItem> items,MailChoice choice) {
-        if (items.isEmpty()) { setStatus("Aucun mail récent trouvé dans "+provider+"."); return; }
-        String[] labels=new String[items.size()];
-        for (int i=0;i<items.size();i++) labels[i]=items.get(i).label();
+        if (items.isEmpty()) {
+            setStatus("Aucun mail récent trouvé dans "+provider+".");
+            return;
+        }
         setStatus("Choisis le mail à importer.");
-        new AlertDialog.Builder(this)
-                .setTitle("Derniers mails · "+provider)
-                .setItems(labels,(d,which)->choice.choose(items.get(which)))
-                .setNegativeButton("Annuler",null)
-                .show();
+
+        LinearLayout list=new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(14),dp(8),dp(14),dp(10));
+        list.setBackgroundColor(Color.WHITE);
+
+        TextView help=text("Appuie sur un mail pour l’ajouter à ta tâche.",14,MUTED,false);
+        help.setPadding(dp(4),dp(2),dp(4),dp(8));
+        list.addView(help);
+
+        AlertDialog dialog=new AlertDialog.Builder(this)
+                .setTitle("15 derniers mails · "+provider)
+                .setNegativeButton("Fermer",null)
+                .create();
+
+        for (MailItem item:items) {
+            Button row=new Button(this);
+            row.setAllCaps(false);
+            row.setGravity(android.view.Gravity.START|android.view.Gravity.CENTER_VERTICAL);
+            row.setTextSize(15);
+            row.setTextColor(INK);
+            row.setBackgroundColor(0xfff7f9fd);
+            row.setPadding(dp(14),dp(11),dp(14),dp(11));
+            row.setText(buildReadableMailLabel(item));
+            row.setOnClickListener(v->{
+                dialog.dismiss();
+                choice.choose(item);
+            });
+            LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
+            rp.bottomMargin=dp(8);
+            list.addView(row,rp);
+        }
+
+        ScrollView scroll=new ScrollView(this);
+        scroll.addView(list,new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
+        dialog.setView(scroll);
+        dialog.setOnShowListener(d->{
+            int width=(int)(getResources().getDisplayMetrics().widthPixels*0.94f);
+            int height=(int)(getResources().getDisplayMetrics().heightPixels*0.82f);
+            if (dialog.getWindow()!=null) dialog.getWindow().setLayout(width,height);
+        });
+        dialog.show();
+    }
+
+    private String buildReadableMailLabel(MailItem item) {
+        String sender=cleanSender(item.from);
+        String subject=cleanSubject(item.subject);
+        String preview=cleanPreview(item.preview);
+        StringBuilder out=new StringBuilder();
+        out.append(sender);
+        if (item.when!=null && !item.when.trim().isEmpty()) out.append("   ·   ").append(item.when.trim());
+        out.append("\n").append(subject);
+        if (!preview.isEmpty() && !preview.equalsIgnoreCase(subject)) out.append("\n").append(preview);
+        return out.toString();
+    }
+
+    private String cleanSender(String raw) {
+        if (raw==null || raw.trim().isEmpty()) return "Expéditeur inconnu";
+        String value=raw.trim();
+        String lower=value.toLowerCase(Locale.ROOT);
+        if (lower.contains("notifications@github.com")) return "GitHub";
+        int lt=value.indexOf('<');
+        if (lt>0) value=value.substring(0,lt).trim();
+        value=value.replace("\"","").trim();
+        if (value.isEmpty() && lt>=0) {
+            int gt=raw.indexOf('>',lt);
+            if (gt>lt) value=raw.substring(lt+1,gt).trim();
+        }
+        if (value.length()>42) value=value.substring(0,39)+"…";
+        return value.isEmpty()?"Expéditeur inconnu":value;
+    }
+
+    private String cleanSubject(String raw) {
+        String s=(raw==null)?"":raw.trim();
+        if (s.isEmpty()) return "Sans objet";
+        if (s.startsWith("[") && s.contains("]")) {
+            int end=s.indexOf(']');
+            if (end>=0 && end<s.length()-1) s=s.substring(end+1).trim();
+        }
+        s=s.replaceFirst("(?i)^Run failed:\\s*","Échec de compilation : ");
+        s=s.replaceFirst("(?i)^Run cancelled:\\s*","Compilation annulée : ");
+        s=s.replaceFirst("(?i)^Run completed:\\s*","Compilation terminée : ");
+        s=s.replaceAll("\\s+"," ").trim();
+        if (s.length()>90) s=s.substring(0,87)+"…";
+        return s;
+    }
+
+    private String cleanPreview(String raw) {
+        if (raw==null) return "";
+        String s=raw.replaceAll("\\s+"," ").trim();
+        s=s.replace("&nbsp;"," ");
+        if (s.length()>110) s=s.substring(0,107)+"…";
+        return s;
     }
 
     private void downloadGmailMail(String token,MailItem item) {
         setStatus("Import du mail Gmail complet…");
         new Thread(()->{
             try {
-                JSONObject raw=new JSONObject(get("https://gmail.googleapis.com/gmail/v1/users/me/messages/"+item.id+"?format=raw",token).text());
+                HttpResult r=get("https://gmail.googleapis.com/gmail/v1/users/me/messages/"+item.id+"?format=raw",token);
+                if (r.code<200 || r.code>=300) throw new Exception("gmail-raw");
+                JSONObject raw=new JSONObject(r.text());
                 byte[] eml=Base64.decode(raw.getString("raw"),Base64.URL_SAFE|Base64.NO_WRAP);
                 saveMail("Gmail",item.subject,eml);
             } catch (Exception e) {
@@ -257,10 +355,12 @@ public final class MailImportActivity extends Activity {
         input.setSingleLine(true);
         input.setTextSize(17);
         int pad=dp(20);
-        LinearLayout box=new LinearLayout(this); box.setPadding(pad,0,pad,0); box.addView(input,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout box=new LinearLayout(this);
+        box.setPadding(pad,0,pad,0);
+        box.addView(input,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
         new AlertDialog.Builder(this)
                 .setTitle("Première connexion Outlook")
-                .setMessage("Il faut une seule fois l’ID Microsoft de Mes tâches Manu. Je te guiderai écran par écran pour le créer. Une fois enregistré, tu n’auras plus à le saisir.")
+                .setMessage("Il faut une seule fois l’ID Microsoft de Mes tâches Manu. Une fois enregistré, tu n’auras plus à le saisir.")
                 .setView(box)
                 .setNegativeButton("Plus tard",null)
                 .setPositiveButton("Enregistrer",(d,w)->{
@@ -318,7 +418,7 @@ public final class MailImportActivity extends Activity {
                 runOnUiThread(()->showOutlookCode(userCode,verification));
                 pollOutlookToken(clientId,deviceCode,interval,expires);
             } catch (Exception e) {
-                runOnUiThread(()->setStatus("Connexion Outlook à finaliser. Nous ferons la configuration Microsoft ensemble."));
+                runOnUiThread(()->setStatus("Connexion Outlook à finaliser. Vérifie la configuration Microsoft."));
             }
         }).start();
     }
@@ -372,8 +472,10 @@ public final class MailImportActivity extends Activity {
         runOnUiThread(()->setStatus("Chargement de tes derniers mails Outlook…"));
         new Thread(()->{
             try {
-                String url="https://graph.microsoft.com/v1.0/me/messages?$top=15&$select=id,subject,from,receivedDateTime&$orderby=receivedDateTime%20desc";
-                JSONObject json=new JSONObject(get(url,token).text());
+                String url="https://graph.microsoft.com/v1.0/me/messages?$top=15&$select=id,subject,from,receivedDateTime,bodyPreview&$orderby=receivedDateTime%20desc";
+                HttpResult r=get(url,token);
+                if (r.code<200 || r.code>=300) throw new Exception("outlook-list");
+                JSONObject json=new JSONObject(r.text());
                 JSONArray values=json.optJSONArray("value");
                 ArrayList<MailItem> items=new ArrayList<>();
                 if (values!=null) for (int i=0;i<values.length();i++) {
@@ -383,7 +485,13 @@ public final class MailImportActivity extends Activity {
                     String from=addr==null?"":addr.optString("name",addr.optString("address",""));
                     String received=m.optString("receivedDateTime","");
                     String when=received.length()>=16?received.substring(8,10)+"/"+received.substring(5,7)+" "+received.substring(11,16):"";
-                    items.add(new MailItem(m.optString("id",""),m.optString("subject",""),from,when));
+                    items.add(new MailItem(
+                            m.optString("id",""),
+                            m.optString("subject",""),
+                            from,
+                            when,
+                            m.optString("bodyPreview","")
+                    ));
                 }
                 runOnUiThread(()->showMailList("Outlook",items,item->downloadOutlookMail(token,item)));
             } catch (Exception e) {
@@ -406,6 +514,14 @@ public final class MailImportActivity extends Activity {
         }).start();
     }
 
+    private void pickMailFile() {
+        Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"message/rfc822","application/vnd.ms-outlook","application/octet-stream"});
+        startActivityForResult(intent,PICK_MAIL_FILE);
+    }
+
     private void saveMail(String provider,String subject,byte[] bytes) throws Exception {
         File dir=new File(getFilesDir(),"mail");
         if (!dir.exists()&&!dir.mkdirs()) throw new Exception("dir");
@@ -418,76 +534,113 @@ public final class MailImportActivity extends Activity {
         }
         runOnUiThread(()->{
             Toast.makeText(this,"Mail complet ajouté à la tâche.",Toast.LENGTH_LONG).show();
-            setResult(RESULT_OK);
             finish();
         });
     }
 
-    private void pickMailFile() {
-        Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
-        i.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"message/rfc822","application/vnd.ms-outlook","application/octet-stream"});
-        startActivityForResult(i,PICK_MAIL_FILE);
+    private HttpResult get(String address,String token) throws Exception {
+        HttpURLConnection connection=(HttpURLConnection)new URL(address).openConnection();
+        connection.setConnectTimeout(15000);
+        connection.setReadTimeout(20000);
+        connection.setRequestMethod("GET");
+        connection.setRequestProperty("Authorization","Bearer "+token);
+        connection.setRequestProperty("Accept","application/json, message/rfc822, */*");
+        return readResponse(connection);
     }
 
-    private HttpResult get(String url,String token) throws Exception {
-        HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();
-        c.setConnectTimeout(15000); c.setReadTimeout(20000); c.setRequestMethod("GET");
-        if (token!=null&&!token.isEmpty()) c.setRequestProperty("Authorization","Bearer "+token);
-        return read(c);
-    }
-
-    private HttpResult postForm(String url,String form) throws Exception {
-        HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();
-        c.setConnectTimeout(15000); c.setReadTimeout(20000); c.setRequestMethod("POST"); c.setDoOutput(true);
-        c.setRequestProperty("Content-Type","application/x-www-form-urlencoded");
+    private HttpResult postForm(String address,String form) throws Exception {
         byte[] data=form.getBytes(StandardCharsets.UTF_8);
-        c.setFixedLengthStreamingMode(data.length);
-        c.getOutputStream().write(data);
-        return read(c);
+        HttpURLConnection connection=(HttpURLConnection)new URL(address).openConnection();
+        connection.setConnectTimeout(15000);
+        connection.setReadTimeout(20000);
+        connection.setRequestMethod("POST");
+        connection.setDoOutput(true);
+        connection.setRequestProperty("Content-Type","application/x-www-form-urlencoded");
+        connection.setRequestProperty("Content-Length",String.valueOf(data.length));
+        try (java.io.OutputStream out=connection.getOutputStream()) { out.write(data); }
+        return readResponse(connection);
     }
 
-    private HttpResult read(HttpURLConnection c) throws Exception {
-        int code=c.getResponseCode();
-        InputStream in=code>=400?c.getErrorStream():c.getInputStream();
-        ByteArrayOutputStream out=new ByteArrayOutputStream();
-        if (in!=null) {
-            byte[] buf=new byte[8192]; int n;
-            while ((n=in.read(buf))!=-1) out.write(buf,0,n);
-            in.close();
+    private HttpResult readResponse(HttpURLConnection connection) throws Exception {
+        int code=connection.getResponseCode();
+        InputStream in=(code>=200&&code<400)?connection.getInputStream():connection.getErrorStream();
+        byte[] body=in==null?new byte[0]:readAll(in);
+        connection.disconnect();
+        return new HttpResult(code,body);
+    }
+
+    private byte[] readAll(InputStream in) throws Exception {
+        try (InputStream input=in; ByteArrayOutputStream out=new ByteArrayOutputStream()) {
+            byte[] buffer=new byte[8192];
+            int n;
+            while ((n=input.read(buffer))!=-1) out.write(buffer,0,n);
+            return out.toByteArray();
         }
-        c.disconnect();
-        return new HttpResult(code,out.toByteArray());
     }
 
-    private String enc(String s) throws Exception { return URLEncoder.encode(s,"UTF-8"); }
-    private String encPath(String s) throws Exception { return URLEncoder.encode(s,"UTF-8").replace("+","%20"); }
+    private String enc(String value) {
+        try { return URLEncoder.encode(value==null?"":value,"UTF-8"); }
+        catch (Exception e) { return ""; }
+    }
+
+    private String encPath(String value) {
+        return enc(value).replace("+","%20");
+    }
 
     private String safeName(String value) {
-        String s=value==null?"mail":value.replaceAll("[^a-zA-Z0-9._-]+","-");
-        if (s.length()>50) s=s.substring(0,50);
-        if (s.isEmpty()) s="mail";
-        return s;
+        String s=(value==null||value.trim().isEmpty())?"mail":value.trim();
+        s=s.replaceAll("[^a-zA-Z0-9._-]+","-");
+        if (s.length()>55) s=s.substring(0,55);
+        return s.isEmpty()?"mail":s;
     }
 
     private String fileName(Uri uri) {
         String name="mail.eml";
-        try (android.database.Cursor c=getContentResolver().query(uri,new String[]{OpenableColumns.DISPLAY_NAME},null,null,null)) {
-            if (c!=null&&c.moveToFirst()&&c.getString(0)!=null) name=c.getString(0);
-        } catch (Exception ignored) {}
+        android.database.Cursor cursor=null;
+        try {
+            cursor=getContentResolver().query(uri,new String[]{OpenableColumns.DISPLAY_NAME},null,null,null);
+            if (cursor!=null&&cursor.moveToFirst()) {
+                int col=cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (col>=0) {
+                    String value=cursor.getString(col);
+                    if (value!=null&&!value.trim().isEmpty()) name=value.trim();
+                }
+            }
+        } catch (Exception ignored) {
+        } finally {
+            if (cursor!=null) cursor.close();
+        }
         return name;
     }
 
-    private void setStatus(String value) { runOnUiThread(()->status.setText(value)); }
+    private void setStatus(String value) {
+        runOnUiThread(()->{
+            if (status!=null) status.setText(value==null?"":value);
+        });
+    }
+
+    private Button button(String label,boolean primary) {
+        Button button=new Button(this);
+        button.setText(label);
+        button.setAllCaps(false);
+        button.setTextSize(18);
+        button.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+        button.setTextColor(primary?Color.WHITE:INK);
+        button.setBackgroundColor(primary?BLUE:Color.WHITE);
+        button.setPadding(dp(16),dp(12),dp(16),dp(12));
+        return button;
+    }
 
     private TextView text(String value,float size,int color,boolean bold) {
-        TextView t=new TextView(this); t.setText(value); t.setTextSize(size); t.setTextColor(color);
-        t.setTypeface(Typeface.create("sans-serif",bold?Typeface.BOLD:Typeface.NORMAL)); t.setLineSpacing(dp(2),1); return t;
+        TextView view=new TextView(this);
+        view.setText(value);
+        view.setTextSize(size);
+        view.setTextColor(color);
+        if (bold) view.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+        return view;
     }
 
-    private Button button(String value,boolean primary) {
-        Button b=new Button(this); b.setText(value); b.setTextSize(18); b.setAllCaps(false); b.setMinHeight(dp(56));
-        b.setTextColor(primary?Color.WHITE:INK); b.setBackgroundColor(primary?BLUE:Color.WHITE); return b;
+    private int dp(int value) {
+        return Math.round(value*getResources().getDisplayMetrics().density);
     }
-
-    private int dp(float v) { return Math.round(v*getResources().getDisplayMetrics().density); }
 }

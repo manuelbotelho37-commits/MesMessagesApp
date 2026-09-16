@@ -44,6 +44,7 @@ jobs:
           python3 mes-taches/tools/apply_fold_two_pane_3_3.py
           python3 mes-taches/tools/apply_fold_two_pane_fix_3_5.py
           python3 mes-taches/tools/apply_notification_done_confirmation_3_6.py
+          python3 mes-taches/tools/apply_insisto_brand_3_7.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -94,12 +95,12 @@ jobs:
           path: mes-taches/app/build/reports
           retention-days: 14
       - name: Prepare installer
-        run: cp mes-taches/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/MesTaches.apk"
+        run: cp mes-taches/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/Insisto.apk"
       - name: Installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MesTaches-apk
-          path: ${{ runner.temp }}/MesTaches.apk
+          name: Insisto-apk
+          path: ${{ runner.temp }}/Insisto.apk
           if-no-files-found: error
           retention-days: 90
       - name: Make installer downloadable
@@ -108,7 +109,7 @@ jobs:
           set -euo pipefail
           TASKS_TAG=mes-taches-v1.0
           if gh release view "$TASKS_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TASKS_TAG" "$RUNNER_TEMP/MesTaches.apk" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$TASKS_TAG" "$RUNNER_TEMP/Insisto.apk" --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$TASKS_TAG" "$RUNNER_TEMP/MesTaches.apk" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Mes tâches 1.0" --notes "Application Android : tâches et rendez-vous, date, heure, cases à cocher et sauvegarde sur le téléphone." --prerelease --latest=false
+            gh release create "$TASKS_TAG" "$RUNNER_TEMP/Insisto.apk" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Insisto" --notes "Application Android de tâches et rappels, anciennement Mes tâches Manu." --prerelease --latest=false
           fi

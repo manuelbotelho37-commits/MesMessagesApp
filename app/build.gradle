@@ -7,8 +7,8 @@ android {
         applicationId 'com.insisto.app'
         minSdk 26
         targetSdk 35
-        versionCode 4
-        versionName '1.4.1-insisto'
+        versionCode 5
+        versionName '1.4.2-insisto'
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17

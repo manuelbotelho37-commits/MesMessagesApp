@@ -3,10 +3,9 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "app"
-MAIN = APP / "src" / "main" / "java" / "fr" / "manubotelho" / "mestaches" / "MainActivity.java"
 MANIFEST = APP / "src" / "main" / "AndroidManifest.xml"
 GRADLE = APP / "build.gradle"
-ICON = APP / "src" / "main" / "res" / "drawable" / "ic_insisto.png"
+ICON = APP / "src" / "main" / "res" / "drawable" / "ic_insisto.jpg"
 
 if not ICON.exists():
     raise SystemExit("Logo Insisto introuvable")
@@ -25,7 +24,7 @@ for java_file in (APP / "src" / "main" / "java").rglob("*.java"):
     if "Mes tâches Manu" in text:
         java_file.write_text(text.replace("Mes tâches Manu", "Insisto"), encoding="utf-8")
 
-# Version installable par-dessus la 3.6 avec la même signature et le même applicationId.
+# Version installable par-dessus la 3.6 avec la même signature.
 gradle = GRADLE.read_text(encoding="utf-8")
 gradle = re.sub(r"versionCode\s+\d+", "versionCode 106", gradle, count=1)
 gradle = re.sub(r"versionName\s+'[^']+'", "versionName '3.7-insisto-brand'", gradle, count=1)

@@ -43,6 +43,7 @@ jobs:
           python3 mes-taches/tools/apply_productivity_3_2.py
           python3 mes-taches/tools/apply_fold_two_pane_3_3.py
           python3 mes-taches/tools/apply_fold_two_pane_fix_3_5.py
+          python3 mes-taches/tools/apply_notification_done_confirmation_3_6.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

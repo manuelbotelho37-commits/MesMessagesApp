@@ -73,7 +73,7 @@ final class TaskStore extends SQLiteOpenHelper {
     }
     long save(long id, String title, long dueAt, boolean appointment) {
         title=title.trim();
-        if (title.isEmpty() || title.length()>240) throw new IllegalArgumentException("Indique un texte de 1 à 240 caractères.");
+        if (title.isEmpty()) throw new IllegalArgumentException("Indique un texte pour la tâche.");
         ContentValues values=new ContentValues();
         values.put("title",title); values.put("due_at",dueAt);
         values.put("appointment",appointment?1:0);

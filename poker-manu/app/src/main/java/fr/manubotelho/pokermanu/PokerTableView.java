@@ -15,7 +15,7 @@ public final class PokerTableView extends View {
 
     public PokerTableView(Context context){ super(context); init(); }
     public PokerTableView(Context context, AttributeSet attrs){ super(context,attrs); init(); }
-    private void init(){ setMinimumHeight(dp(320)); }
+    private void init(){ setMinimumHeight(Math.round(dp(320))); }
 
     public void setCards(String hero,String board){
         this.hero=(hero==null||hero.trim().isEmpty())?"— —":hero.trim();

@@ -85,16 +85,16 @@ public final class ReminderAlertActivity extends Activity {
 
         LinearLayout panel=new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(14),dp(12),dp(14),dp(12));
-        panel.setBackground(roundRect(WHITE,18,BORDER));
-        panel.setElevation(dp(12));
+        panel.setPadding(dp(10),dp(8),dp(10),dp(8));
+        panel.setBackground(roundRect(WHITE,16,BORDER));
+        panel.setElevation(dp(10));
 
-        TextView header=text("Tâches à faire  •  "+pending.size(),18,INK,true);
-        header.setPadding(dp(4),dp(2),dp(4),dp(4));
+        TextView header=text("À faire  •  "+pending.size(),16,INK,true);
+        header.setPadding(dp(3),0,dp(3),dp(1));
         panel.addView(header,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        TextView rule=text("Sans choix : nouveau rappel automatique dans 1 h",13,MUTED,false);
-        rule.setPadding(dp(4),0,dp(4),dp(9));
+        TextView rule=text("Sans choix : rappel dans 1 h",11,MUTED,false);
+        rule.setPadding(dp(3),0,dp(3),dp(5));
         panel.addView(rule,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
 
         ScrollView scroll=new ScrollView(this);
@@ -103,7 +103,7 @@ public final class ReminderAlertActivity extends Activity {
         rows.setOrientation(LinearLayout.VERTICAL);
         for (TaskStore.Task task:pending) rows.addView(taskCard(task));
         scroll.addView(rows,new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
-        int maxHeight=(int)(getResources().getDisplayMetrics().heightPixels*0.62f);
+        int maxHeight=(int)(getResources().getDisplayMetrics().heightPixels*0.78f);
         scroll.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
             if (scroll.getHeight()>maxHeight) {
                 ViewGroup.LayoutParams p=scroll.getLayoutParams();
@@ -113,14 +113,14 @@ public final class ReminderAlertActivity extends Activity {
         });
         panel.addView(scroll,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        Button close=button("Voir plus tard",WHITE,MUTED,44);
-        LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
-        cp.topMargin=dp(8);
+        Button close=button("Voir plus tard",WHITE,MUTED,34,12);
+        LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(34));
+        cp.topMargin=dp(4);
         panel.addView(close,cp);
         close.setOnClickListener(v->finish());
 
         FrameLayout.LayoutParams pp=new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT,Gravity.TOP|Gravity.CENTER_HORIZONTAL);
-        pp.setMargins(dp(18),dp(34),dp(18),dp(18));
+        pp.setMargins(dp(10),dp(14),dp(10),dp(10));
         root.addView(panel,pp);
         setContentView(root);
     }
@@ -128,49 +128,40 @@ public final class ReminderAlertActivity extends Activity {
     private View taskCard(TaskStore.Task task) {
         LinearLayout card=new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(12),dp(10),dp(12),dp(10));
-        card.setBackground(roundRect(ROW,14,BORDER));
+        card.setPadding(dp(9),dp(6),dp(9),dp(6));
+        card.setBackground(roundRect(ROW,12,BORDER));
         LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
-        cp.bottomMargin=dp(8);
+        cp.bottomMargin=dp(5);
         card.setLayoutParams(cp);
 
-        TextView title=text(task.title,16,INK,true);
-        title.setMaxLines(4);
+        TextView title=text(task.title,14,INK,true);
+        title.setMaxLines(2);
+        title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         card.addView(title);
+
         String when=new SimpleDateFormat("HH:mm",Locale.FRANCE).format(new java.util.Date(task.dueAt));
-        TextView date=text((task.appointment?"Rendez-vous":"Tâche")+" · "+when,13,BLUE,true);
-        date.setPadding(0,dp(3),0,dp(8));
+        TextView date=text((task.appointment?"Rendez-vous":"Tâche")+" · "+when,11,BLUE,true);
+        date.setPadding(0,0,0,dp(4));
         card.addView(date);
 
-        TextView snoozeLabel=text("Me le rappeler dans :",13,MUTED,true);
-        snoozeLabel.setPadding(0,0,0,dp(5));
-        card.addView(snoozeLabel);
-
-        LinearLayout snoozeRow1=new LinearLayout(this);
-        snoozeRow1.setOrientation(LinearLayout.HORIZONTAL);
-        snoozeRow1.setGravity(Gravity.CENTER_VERTICAL);
-        addSnoozeButton(snoozeRow1,task,"3 h",3);
-        addSnoozeButton(snoozeRow1,task,"5 h",5);
-        card.addView(snoozeRow1,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        LinearLayout snoozeRow2=new LinearLayout(this);
-        snoozeRow2.setOrientation(LinearLayout.HORIZONTAL);
-        snoozeRow2.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams sr2=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
-        sr2.topMargin=dp(6);
-        addSnoozeButton(snoozeRow2,task,"10 h",10);
-        addSnoozeButton(snoozeRow2,task,"24 h",24);
-        card.addView(snoozeRow2,sr2);
+        LinearLayout snoozeRow=new LinearLayout(this);
+        snoozeRow.setOrientation(LinearLayout.HORIZONTAL);
+        snoozeRow.setGravity(Gravity.CENTER_VERTICAL);
+        addSnoozeButton(snoozeRow,task,"3 h",3);
+        addSnoozeButton(snoozeRow,task,"5 h",5);
+        addSnoozeButton(snoozeRow,task,"10 h",10);
+        addSnoozeButton(snoozeRow,task,"24 h",24);
+        card.addView(snoozeRow,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(32)));
 
         LinearLayout actionRow=new LinearLayout(this);
         actionRow.setOrientation(LinearLayout.HORIZONTAL);
         actionRow.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams arp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
-        arp.topMargin=dp(7);
+        LinearLayout.LayoutParams arp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(34));
+        arp.topMargin=dp(4);
 
-        Button pause=button("⏸ Pause",WHITE,ORANGE,44);
-        LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(0,dp(44),1f);
-        pp.setMarginEnd(dp(6));
+        Button pause=button("⏸ Pause",WHITE,ORANGE,34,12);
+        LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(0,dp(34),1f);
+        pp.setMarginEnd(dp(3));
         actionRow.addView(pause,pp);
         pause.setOnClickListener(v->{
             try {
@@ -181,9 +172,9 @@ public final class ReminderAlertActivity extends Activity {
             build();
         });
 
-        Button done=button("✓ Fait",ORANGE,WHITE,44);
-        LinearLayout.LayoutParams dpv=new LinearLayout.LayoutParams(0,dp(44),1f);
-        dpv.setMarginStart(dp(6));
+        Button done=button("✓ Fait",ORANGE,WHITE,34,12);
+        LinearLayout.LayoutParams dpv=new LinearLayout.LayoutParams(0,dp(34),1f);
+        dpv.setMarginStart(dp(3));
         actionRow.addView(done,dpv);
         done.setOnClickListener(v->{
             try {
@@ -201,9 +192,9 @@ public final class ReminderAlertActivity extends Activity {
     }
 
     private void addSnoozeButton(LinearLayout row,TaskStore.Task task,String label,int hours) {
-        Button b=button(label,WHITE,BLUE,42);
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(42),1f);
-        if (row.getChildCount()>0) p.setMarginStart(dp(6));
+        Button b=button(label,WHITE,BLUE,32,11);
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(32),1f);
+        if (row.getChildCount()>0) p.setMarginStart(dp(3));
         row.addView(b,p);
         b.setOnClickListener(v->snooze(task,hours));
     }
@@ -225,17 +216,19 @@ public final class ReminderAlertActivity extends Activity {
         finish();
     }
 
-    private Button button(String label,int fill,int textColor,int minHeight) {
+    private Button button(String label,int fill,int textColor,int minHeight,float textSize) {
         Button b=new Button(this);
         b.setText(label);
-        b.setTextSize(14);
+        b.setTextSize(textSize);
         b.setAllCaps(false);
         b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));
         b.setTextColor(textColor);
         b.setMinHeight(dp(minHeight));
         b.setMinimumHeight(dp(minHeight));
-        b.setPadding(dp(8),dp(4),dp(8),dp(4));
-        GradientDrawable shape=roundRect(fill,14,fill==WHITE?BORDER:fill);
+        b.setMinWidth(0);
+        b.setMinimumWidth(0);
+        b.setPadding(dp(3),0,dp(3),0);
+        GradientDrawable shape=roundRect(fill,11,fill==WHITE?BORDER:fill);
         b.setBackground(new RippleDrawable(android.content.res.ColorStateList.valueOf(0x22000000),shape,null));
         return b;
     }
@@ -265,4 +258,4 @@ public final class ReminderAlertActivity extends Activity {
     }
 }
 ''',encoding="utf-8")
-print("Choix de rappel 3 h / 5 h / 10 h / 24 h appliqués, défaut 1 h conservé")
+print("Choix 3 h / 5 h / 10 h / 24 h conservés, affichage compact multi-rappels appliqué, défaut 1 h conservé")

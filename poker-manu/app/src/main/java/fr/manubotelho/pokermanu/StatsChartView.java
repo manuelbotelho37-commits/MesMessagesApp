@@ -15,7 +15,7 @@ public final class StatsChartView extends View {
     private double[] values=new double[0];
     private final Locale fr=Locale.FRANCE;
 
-    public StatsChartView(Context c){ super(c); setMinimumHeight(dp(230)); }
+    public StatsChartView(Context c){ super(c); setMinimumHeight(Math.round(dp(230))); }
 
     public void setData(String title,String[] labels,double[] values){
         this.title=title==null?"":title;

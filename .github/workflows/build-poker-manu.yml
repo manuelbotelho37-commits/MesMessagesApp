@@ -1,0 +1,66 @@
+name: Poker Manu Android
+on:
+  push:
+    branches: [poker-manu]
+    paths: ['poker-manu/**', '.github/workflows/build-poker-manu.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: poker-manu-build
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply Poker Manu V1 fixes
+        run: python3 poker-manu/tools/fix_v1.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Android SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Recover or create Poker Manu signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEY_DIR="$RUNNER_TEMP/poker-manu-signing"
+          mkdir -p "$KEY_DIR"
+          ARTIFACT_ID=$(gh api --method GET "repos/$GITHUB_REPOSITORY/actions/artifacts" -f name=PokerManu-signing-key-v1 -f per_page=1 --jq '.artifacts[] | select(.expired == false) | .id' | head -n 1)
+          if [ -n "$ARTIFACT_ID" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" > "$RUNNER_TEMP/poker-key.zip"
+            unzip -q "$RUNNER_TEMP/poker-key.zip" -d "$KEY_DIR"
+          else
+            keytool -genkeypair -noprompt -keystore "$KEY_DIR/poker-manu.jks" -storepass android -keypass android -alias poker-manu -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Poker Manu"
+          fi
+          echo "POKER_MANU_KEYSTORE=$KEY_DIR/poker-manu.jks" >> "$GITHUB_ENV"
+      - name: Preserve Poker Manu signing key
+        uses: actions/upload-artifact@v4
+        with:
+          name: PokerManu-signing-key-v1
+          path: ${{ env.POKER_MANU_KEYSTORE }}
+          retention-days: 90
+          if-no-files-found: error
+      - name: Compile Poker Manu
+        run: gradle -p poker-manu --no-daemon lintDebug assembleRelease
+      - name: Prepare installer
+        run: cp poker-manu/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/Poker-Manu-V1.apk"
+      - name: Upload Poker Manu APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Poker-Manu-V1
+          path: ${{ runner.temp }}/Poker-Manu-V1.apk
+          if-no-files-found: error
+          retention-days: 90

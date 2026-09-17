@@ -308,8 +308,9 @@ public final class MainActivity extends Activity {
         titleField.setTextSize(19); titleField.setTextColor(INK);
         titleField.setHint("Ex. Appeler un client");
         titleField.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_CAP_SENTENCES|InputType.TYPE_TEXT_FLAG_MULTI_LINE);
-        titleField.setFilters(new InputFilter[]{new InputFilter.LengthFilter(240)});
-        titleField.setMinLines(2); titleField.setMaxLines(4);
+        titleField.setFilters(new InputFilter[0]);
+        titleField.setMinLines(3); titleField.setMaxLines(10);
+        titleField.setVerticalScrollBarEnabled(true);
         titleField.setPadding(dp(14),dp(12),dp(14),dp(12));
         titleField.setBackground(shape(WHITE,12,BORDER));
         titleField.setText(saved!=null?saved.getString("draftTitle",""):task==null?"":task.title);

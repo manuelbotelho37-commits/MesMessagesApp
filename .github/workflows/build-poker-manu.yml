@@ -22,6 +22,8 @@ jobs:
         run: python3 poker-manu/tools/fix_v1.py
       - name: Apply Poker Manu V2
         run: python3 poker-manu/tools/upgrade_v2.py
+      - name: Fix Poker Manu V2 generated strings
+        run: python3 poker-manu/tools/fix_v2_escapes.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

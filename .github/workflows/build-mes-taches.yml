@@ -46,6 +46,7 @@ jobs:
           python3 mes-taches/tools/apply_notification_done_confirmation_3_6.py
           python3 mes-taches/tools/apply_insisto_brand_3_7.py
           python3 mes-taches/tools/apply_long_task_text_fix.py
+          python3 mes-taches/tools/apply_custom_snooze_choices.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

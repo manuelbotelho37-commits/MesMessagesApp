@@ -18,8 +18,10 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
-      - name: Apply Poker Manu V1 fixes
+      - name: Apply Poker Manu base fixes
         run: python3 poker-manu/tools/fix_v1.py
+      - name: Apply Poker Manu V2
+        run: python3 poker-manu/tools/upgrade_v2.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -56,11 +58,11 @@ jobs:
       - name: Compile Poker Manu
         run: gradle -p poker-manu --no-daemon lintDebug assembleRelease
       - name: Prepare installer
-        run: cp poker-manu/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/Poker-Manu-V1.apk"
+        run: cp poker-manu/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/Poker-Manu-V2.apk"
       - name: Upload Poker Manu APK
         uses: actions/upload-artifact@v4
         with:
-          name: Poker-Manu-V1
-          path: ${{ runner.temp }}/Poker-Manu-V1.apk
+          name: Poker-Manu-V2
+          path: ${{ runner.temp }}/Poker-Manu-V2.apk
           if-no-files-found: error
           retention-days: 90

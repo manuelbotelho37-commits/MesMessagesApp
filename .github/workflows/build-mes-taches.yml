@@ -45,6 +45,7 @@ jobs:
           python3 mes-taches/tools/apply_fold_two_pane_fix_3_5.py
           python3 mes-taches/tools/apply_notification_done_confirmation_3_6.py
           python3 mes-taches/tools/apply_insisto_brand_3_7.py
+          python3 mes-taches/tools/apply_long_task_text_fix.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

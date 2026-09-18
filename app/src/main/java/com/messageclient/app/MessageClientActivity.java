@@ -32,7 +32,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -52,6 +54,7 @@ public class MessageClientActivity extends Activity {
     private CheckBox favoritesOnly;
     private Switch bubbleSwitch;
     private List<MessageStore.MessageTemplate> templates = new ArrayList<>();
+    private final Set<String> expandedMessageIds = new HashSet<>();
     private boolean waitingOverlayPermission = false;
     private boolean suppressSwitch = false;
 
@@ -316,15 +319,27 @@ public class MessageClientActivity extends Activity {
 
         card.addView(heading);
 
+        boolean expanded = expandedMessageIds.contains(m.id);
+
         TextView preview = new TextView(this);
         preview.setText(m.text);
         preview.setTextColor(Color.rgb(207, 211, 216));
         preview.setTextSize(14);
-        preview.setMaxLines(5);
-        preview.setPadding(0, dp(8), 0, dp(8));
-        preview.setOnClickListener(v -> copyTemplate(m));
+        preview.setMaxLines(expanded ? Integer.MAX_VALUE : 4);
+        preview.setPadding(0, dp(8), 0, dp(4));
+        preview.setOnClickListener(v -> toggleExpanded(m.id));
         card.addView(preview, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView expand = new TextView(this);
+        expand.setText(expanded ? "Réduire  ▲" : "Voir tout  ▼");
+        expand.setTextColor(ORANGE);
+        expand.setTextSize(13);
+        expand.setTypeface(Typeface.DEFAULT_BOLD);
+        expand.setPadding(0, dp(4), 0, dp(8));
+        expand.setOnClickListener(v -> toggleExpanded(m.id));
+        card.addView(expand, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
@@ -355,6 +370,12 @@ public class MessageClientActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.bottomMargin = dp(10);
         listContainer.addView(card, lp);
+    }
+
+    private void toggleExpanded(String id) {
+        if (expandedMessageIds.contains(id)) expandedMessageIds.remove(id);
+        else expandedMessageIds.add(id);
+        renderList();
     }
 
     private TextView chip(String text) {

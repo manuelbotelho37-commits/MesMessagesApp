@@ -79,6 +79,7 @@ final class BackupManager {
                 n.put("title",note.title);
                 n.put("content",note.content);
                 n.put("favorite",note.favorite);
+                n.put("locked",note.locked);
                 n.put("updatedAt",note.updatedAt);
 
                 JSONArray attachments=new JSONArray();
@@ -184,6 +185,7 @@ final class BackupManager {
                 nv.put("title",n.optString("title","Note"));
                 nv.put("content",n.optString("content",""));
                 nv.put("favorite",n.optBoolean("favorite",false)?1:0);
+                nv.put("locked",n.optBoolean("locked",false)?1:0);
                 nv.put("updated_at",n.optLong("updatedAt",System.currentTimeMillis()));
                 db.insertOrThrow("notes",null,nv);
 

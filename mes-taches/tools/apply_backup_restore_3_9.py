@@ -225,10 +225,11 @@ methods = r'''    private void startBackup() {
 
     private void configureBackup(Uri uri,Intent data) {
         try {
-            int flags=data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    |Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-            try { getContentResolver().takePersistableUriPermission(uri,flags); }
-            catch (SecurityException ignored) {}
+            try {
+                getContentResolver().takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            } catch (SecurityException ignored) {}
             if (!TaskBackupManager.backupNow(this,uri)) {
                 Toast.makeText(this,"Impossible de créer la sauvegarde",Toast.LENGTH_LONG).show();
                 return;

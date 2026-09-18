@@ -379,11 +379,14 @@ public final class MainActivity extends Activity {
 
         Button detailLock=button(note.locked?"🔒 Verrou ON":"🔓 Verrou OFF",false);
         detailLock.setOnClickListener(v->{
-            store.setLocked(note.id,!note.locked);
+            NoteStore.Note latest=store.get(note.id);
+            if(latest==null) return;
+            boolean next=!latest.locked;
+            store.setLocked(note.id,next);
+            detailLock.setText(next?"🔒 Verrou ON":"🔓 Verrou OFF");
             BackupManager.scheduleBackup(this);
             refresh();
-            Toast.makeText(this,note.locked?"Note déverrouillée":"Note verrouillée",Toast.LENGTH_SHORT).show();
-            showNoteDetails(note.id);
+            Toast.makeText(this,next?"Note verrouillée":"Note déverrouillée",Toast.LENGTH_SHORT).show();
         });
         LinearLayout.LayoutParams lockParams=new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,dp(44));

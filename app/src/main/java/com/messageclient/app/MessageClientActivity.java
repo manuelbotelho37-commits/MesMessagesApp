@@ -319,9 +319,9 @@ public class MessageClientActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
 
         boolean autoConfigured = AutoBackupManager.isConfigured(this);
-        autoBackupButton = smallButton(autoConfigured
-                ? (compactTwoPane ? "Auto ✓" : "Sauvegarde auto ✓")
-                : (compactTwoPane ? "Auto" : "Sauvegarde auto"));
+        autoBackupButton = smallButton(autoBackupLabel(autoConfigured));
+        autoBackupButton.setSingleLine(true);
+        if (isNarrowLeftPane()) autoBackupButton.setTextSize(11);
         autoBackupButton.setOnClickListener(v -> startAutoBackupSetup());
         row.addView(autoBackupButton, new LinearLayout.LayoutParams(
                 0, dp(compactTwoPane ? 36 : 42), 1f));
@@ -334,6 +334,16 @@ public class MessageClientActivity extends Activity {
         row.addView(restore, restoreLp);
 
         return row;
+    }
+
+    private boolean isNarrowLeftPane() {
+        float leftPaneDp = getResources().getConfiguration().screenWidthDp * 0.36f;
+        return leftPaneDp < 280f;
+    }
+
+    private String autoBackupLabel(boolean configured) {
+        if (isNarrowLeftPane()) return configured ? "Auto ✓" : "Auto";
+        return configured ? "Sauvegarde auto ✓" : "Sauvegarde auto";
     }
 
     private void startAutoBackupSetup() {
@@ -361,7 +371,7 @@ public class MessageClientActivity extends Activity {
 
             AutoBackupManager.setBackupUri(this, uri);
             if (autoBackupButton != null) {
-                autoBackupButton.setText(compactTwoPane ? "Auto ✓" : "Sauvegarde auto ✓");
+                autoBackupButton.setText(autoBackupLabel(true));
             }
             Toast.makeText(this,
                     "Sauvegarde automatique activée ✓",

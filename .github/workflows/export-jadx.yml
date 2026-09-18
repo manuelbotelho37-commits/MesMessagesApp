@@ -1,0 +1,17 @@
+name: Export JADX Tool
+on:
+  pull_request:
+    branches: [ main ]
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download JADX
+        run: |
+          curl -L --fail --retry 3 -o jadx.zip https://github.com/skylot/jadx/releases/download/v1.5.1/jadx-1.5.1.zip
+      - name: Upload JADX
+        uses: actions/upload-artifact@v4
+        with:
+          name: jadx-tool
+          path: jadx.zip
+          retention-days: 1

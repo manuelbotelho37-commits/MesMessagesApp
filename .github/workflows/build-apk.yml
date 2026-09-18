@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ message-client ]
 
 jobs:
   build:
@@ -18,27 +18,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Restore Insisto signing key
-        id: signing-cache
-        uses: actions/cache@v4
-        with:
-          path: .signing/insisto.keystore
-          key: insisto-signing-key-v1
-
-      - name: Create Insisto signing key
-        if: steps.signing-cache.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p .signing
-          keytool -genkeypair -v \
-            -keystore .signing/insisto.keystore \
-            -storepass Insisto2026 \
-            -keypass Insisto2026 \
-            -alias insisto \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Insisto, OU=Mobile, O=Manuel Botelho, L=Tours, ST=Centre-Val de Loire, C=FR"
-
       - name: Install Android platform
         run: |
           SDKMANAGER=/usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager
@@ -50,14 +29,11 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Apply Insisto name
-        run: sed -i 's/title.setText("Mes Messages")/title.setText("Insisto")/' app/src/main/java/com/mesmessages/app/ConversationListActivity.java
-
       - name: Build debug APK
         run: gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Insisto-1.5-apk
+          name: Message-Client-APK
           path: app/build/outputs/apk/debug/app-debug.apk

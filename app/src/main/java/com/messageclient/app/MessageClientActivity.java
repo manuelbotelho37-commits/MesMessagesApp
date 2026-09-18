@@ -57,6 +57,7 @@ public class MessageClientActivity extends Activity {
     private final Set<String> expandedMessageIds = new HashSet<>();
     private boolean waitingOverlayPermission = false;
     private boolean suppressSwitch = false;
+    private boolean compactTwoPane = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,17 +67,18 @@ public class MessageClientActivity extends Activity {
         w.setStatusBarColor(BG);
         w.setNavigationBarColor(BG);
 
-        boolean twoPane = getResources().getConfiguration().screenWidthDp >= 600;
+        int screenWidthDp = getResources().getConfiguration().screenWidthDp;
+        compactTwoPane = screenWidthDp < 600;
 
         LinearLayout root = new LinearLayout(this);
         root.setBackgroundColor(BG);
-        root.setPadding(dp(14), dp(14), dp(14), dp(10));
+        root.setPadding(dp(compactTwoPane ? 6 : 14),
+                dp(compactTwoPane ? 8 : 14),
+                dp(compactTwoPane ? 6 : 14),
+                dp(8));
 
-        if (twoPane) {
-            buildTwoPaneLayout(root);
-        } else {
-            buildSinglePaneLayout(root);
-        }
+        // Always use the two-panel layout, even on the Fold cover screen.
+        buildTwoPaneLayout(root);
 
         setContentView(root);
 
@@ -89,26 +91,26 @@ public class MessageClientActivity extends Activity {
 
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
-        left.setPadding(0, 0, dp(14), 0);
+        left.setPadding(0, 0, dp(compactTwoPane ? 6 : 14), 0);
 
-        left.addView(buildHeader());
+        left.addView(compactTwoPane ? buildCompactHeader() : buildHeader());
 
-        View bubble = buildBubbleCard();
+        View bubble = compactTwoPane ? buildCompactBubbleCard() : buildBubbleCard();
         LinearLayout.LayoutParams bubbleLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        bubbleLp.topMargin = dp(14);
+        bubbleLp.topMargin = dp(compactTwoPane ? 8 : 14);
         left.addView(bubble, bubbleLp);
 
-        View directInsert = buildDirectInsertCard();
+        View directInsert = compactTwoPane ? buildCompactDirectInsertCard() : buildDirectInsertCard();
         LinearLayout.LayoutParams directLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        directLp.topMargin = dp(10);
+        directLp.topMargin = dp(compactTwoPane ? 6 : 10);
         left.addView(directInsert, directLp);
 
-        View searchRow = buildSearchRow();
+        View searchRow = compactTwoPane ? buildCompactSearchRow() : buildSearchRow();
         LinearLayout.LayoutParams searchLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        searchLp.topMargin = dp(14);
+        searchLp.topMargin = dp(compactTwoPane ? 8 : 14);
         left.addView(searchRow, searchLp);
 
         View spacer = new View(this);
@@ -116,37 +118,46 @@ public class MessageClientActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         Button add = buildAddButton();
+        if (compactTwoPane) {
+            add.setText("+ Ajouter");
+            add.setTextSize(12);
+            add.setPadding(dp(2), 0, dp(2), 0);
+        }
         LinearLayout.LayoutParams addLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(54));
-        addLp.topMargin = dp(12);
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(compactTwoPane ? 44 : 54));
+        addLp.topMargin = dp(compactTwoPane ? 8 : 12);
         left.addView(add, addLp);
 
-        TextView local = new TextView(this);
-        local.setText("Enregistré sur ce téléphone");
-        local.setTextColor(MUTED);
-        local.setTextSize(11);
-        local.setGravity(Gravity.CENTER);
-        local.setPadding(0, dp(8), 0, dp(2));
-        left.addView(local);
+        if (!compactTwoPane) {
+            TextView local = new TextView(this);
+            local.setText("Enregistré sur ce téléphone");
+            local.setTextColor(MUTED);
+            local.setTextSize(11);
+            local.setGravity(Gravity.CENTER);
+            local.setPadding(0, dp(8), 0, dp(2));
+            left.addView(local);
+        }
 
         LinearLayout right = new LinearLayout(this);
         right.setOrientation(LinearLayout.VERTICAL);
-        right.setPadding(dp(16), 0, 0, 0);
+        right.setPadding(dp(compactTwoPane ? 7 : 16), 0, 0, 0);
 
         TextView listTitle = new TextView(this);
         listTitle.setText("Mes messages");
         listTitle.setTextColor(TEXT);
-        listTitle.setTextSize(24);
+        listTitle.setTextSize(compactTwoPane ? 17 : 24);
         listTitle.setTypeface(Typeface.DEFAULT_BOLD);
-        listTitle.setPadding(0, dp(4), 0, dp(4));
+        listTitle.setPadding(0, dp(2), 0, dp(2));
         right.addView(listTitle);
 
-        TextView listSub = new TextView(this);
-        listSub.setText("Faites défiler vos modèles et ouvrez-les avec « Voir tout »");
-        listSub.setTextColor(MUTED);
-        listSub.setTextSize(12);
-        listSub.setPadding(0, 0, 0, dp(8));
-        right.addView(listSub);
+        if (!compactTwoPane) {
+            TextView listSub = new TextView(this);
+            listSub.setText("Faites défiler vos modèles et ouvrez-les avec « Voir tout »");
+            listSub.setTextColor(MUTED);
+            listSub.setTextSize(12);
+            listSub.setPadding(0, 0, 0, dp(8));
+            right.addView(listSub);
+        }
 
         right.addView(buildMessagesScroll(), new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
@@ -154,12 +165,138 @@ public class MessageClientActivity extends Activity {
         View divider = new View(this);
         divider.setBackgroundColor(Color.rgb(45, 49, 56));
 
+        float leftWeight = compactTwoPane ? 0.36f : 0.36f;
+        float rightWeight = compactTwoPane ? 0.64f : 0.64f;
+
         root.addView(left, new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.MATCH_PARENT, 0.36f));
+                ViewGroup.LayoutParams.MATCH_PARENT, leftWeight));
         root.addView(divider, new LinearLayout.LayoutParams(dp(1),
                 ViewGroup.LayoutParams.MATCH_PARENT));
         root.addView(right, new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.MATCH_PARENT, 0.64f));
+                ViewGroup.LayoutParams.MATCH_PARENT, rightWeight));
+    }
+
+    private View buildCompactHeader() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        TextView logo = new TextView(this);
+        logo.setText("M");
+        logo.setTextColor(Color.WHITE);
+        logo.setTextSize(18);
+        logo.setTypeface(Typeface.DEFAULT_BOLD);
+        logo.setGravity(Gravity.CENTER);
+        logo.setBackground(rounded(ORANGE, 12, 0, 0));
+        box.addView(logo, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+        TextView title = new TextView(this);
+        title.setText("Message\nClient");
+        title.setTextColor(TEXT);
+        title.setTextSize(15);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setGravity(Gravity.CENTER);
+        title.setPadding(0, dp(5), 0, 0);
+        box.addView(title);
+        return box;
+    }
+
+    private View buildCompactBubbleCard() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER_HORIZONTAL);
+        card.setPadding(dp(5), dp(7), dp(5), dp(7));
+        card.setBackground(rounded(PANEL, 12, Color.rgb(48, 52, 59), 1));
+
+        TextView title = new TextView(this);
+        title.setText("Bulle M");
+        title.setTextColor(TEXT);
+        title.setTextSize(12);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setGravity(Gravity.CENTER);
+        card.addView(title);
+
+        bubbleSwitch = new Switch(this);
+        boolean enabled = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_BUBBLE, false);
+        bubbleSwitch.setChecked(enabled && Settings.canDrawOverlays(this));
+        bubbleSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (suppressSwitch) return;
+            if (isChecked) enableBubble();
+            else disableBubble();
+        });
+        card.addView(bubbleSwitch, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(40)));
+        return card;
+    }
+
+    private View buildCompactDirectInsertCard() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER_HORIZONTAL);
+        card.setPadding(dp(5), dp(7), dp(5), dp(7));
+        card.setBackground(rounded(PANEL, 12, Color.rgb(48, 52, 59), 1));
+
+        TextView title = new TextView(this);
+        title.setText("SMS direct");
+        title.setTextColor(TEXT);
+        title.setTextSize(11);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setGravity(Gravity.CENTER);
+        card.addView(title);
+
+        TextView state = new TextView(this);
+        state.setText(MessageInsertAccessibilityService.isConnected() ? "Activée ✓" : "À activer");
+        state.setTextColor(MessageInsertAccessibilityService.isConnected()
+                ? Color.rgb(117, 214, 137) : MUTED);
+        state.setTextSize(10);
+        state.setGravity(Gravity.CENTER);
+        card.addView(state);
+
+        Button settings = new Button(this);
+        settings.setText("Réglages");
+        settings.setAllCaps(false);
+        settings.setTextColor(Color.WHITE);
+        settings.setTextSize(10);
+        settings.setPadding(dp(2), 0, dp(2), 0);
+        settings.setBackground(rounded(ORANGE, 9, 0, 0));
+        settings.setOnClickListener(v ->
+                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(36));
+        lp.topMargin = dp(5);
+        card.addView(settings, lp);
+        return card;
+    }
+
+    private View buildCompactSearchRow() {
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+
+        search = new EditText(this);
+        search.setSingleLine(true);
+        search.setHint("Rechercher");
+        search.setHintTextColor(Color.rgb(115, 121, 130));
+        search.setTextColor(TEXT);
+        search.setTextSize(11);
+        search.setPadding(dp(7), 0, dp(5), 0);
+        search.setBackground(rounded(PANEL2, 10, Color.rgb(54, 59, 67), 1));
+        wrap.addView(search, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(38)));
+
+        favoritesOnly = new CheckBox(this);
+        favoritesOnly.setText("Favoris");
+        favoritesOnly.setTextColor(MUTED);
+        favoritesOnly.setTextSize(10);
+        favoritesOnly.setPadding(0, 0, 0, 0);
+        wrap.addView(favoritesOnly);
+
+        search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { renderList(); }
+            @Override public void afterTextChanged(Editable s) {}
+        });
+        favoritesOnly.setOnCheckedChangeListener((b, checked) -> renderList());
+        return wrap;
     }
 
     private void buildSinglePaneLayout(LinearLayout root) {
@@ -397,7 +534,10 @@ public class MessageClientActivity extends Activity {
     private void addTemplateCard(MessageStore.MessageTemplate m) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(14), dp(12), dp(14), dp(10));
+        card.setPadding(dp(compactTwoPane ? 8 : 14),
+                dp(compactTwoPane ? 8 : 12),
+                dp(compactTwoPane ? 8 : 14),
+                dp(compactTwoPane ? 8 : 10));
         card.setBackground(rounded(PANEL, 15, Color.rgb(48, 52, 59), 1));
 
         LinearLayout heading = new LinearLayout(this);
@@ -407,7 +547,7 @@ public class MessageClientActivity extends Activity {
         TextView title = new TextView(this);
         title.setText((m.favorite ? "★  " : "") + m.title);
         title.setTextColor(TEXT);
-        title.setTextSize(17);
+        title.setTextSize(compactTwoPane ? 13 : 17);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         heading.addView(title, new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
@@ -424,8 +564,8 @@ public class MessageClientActivity extends Activity {
         TextView preview = new TextView(this);
         preview.setText(m.text);
         preview.setTextColor(Color.rgb(207, 211, 216));
-        preview.setTextSize(14);
-        preview.setMaxLines(expanded ? Integer.MAX_VALUE : 4);
+        preview.setTextSize(compactTwoPane ? 11 : 14);
+        preview.setMaxLines(expanded ? Integer.MAX_VALUE : (compactTwoPane ? 3 : 4));
         preview.setPadding(0, dp(8), 0, dp(4));
         preview.setOnClickListener(v -> toggleExpanded(m.id));
         card.addView(preview, new LinearLayout.LayoutParams(
@@ -434,7 +574,7 @@ public class MessageClientActivity extends Activity {
         TextView expand = new TextView(this);
         expand.setText(expanded ? "Réduire  ▲" : "Voir tout  ▼");
         expand.setTextColor(ORANGE);
-        expand.setTextSize(13);
+        expand.setTextSize(compactTwoPane ? 10 : 13);
         expand.setTypeface(Typeface.DEFAULT_BOLD);
         expand.setPadding(0, dp(4), 0, dp(8));
         expand.setOnClickListener(v -> toggleExpanded(m.id));
@@ -444,13 +584,13 @@ public class MessageClientActivity extends Activity {
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
 
-        Button copy = smallButton("Copier");
+        Button copy = smallButton(compactTwoPane ? "Copier" : "Copier");
         copy.setOnClickListener(v -> copyTemplate(m));
-        actions.addView(copy, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        actions.addView(copy, new LinearLayout.LayoutParams(0, dp(compactTwoPane ? 38 : 44), 1f));
 
         Button edit = smallButton("Modifier");
         edit.setOnClickListener(v -> showEditor(m));
-        LinearLayout.LayoutParams editLp = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        LinearLayout.LayoutParams editLp = new LinearLayout.LayoutParams(0, dp(compactTwoPane ? 38 : 44), 1f);
         editLp.leftMargin = dp(6);
         actions.addView(edit, editLp);
 
@@ -460,7 +600,8 @@ public class MessageClientActivity extends Activity {
             m.favorite = !m.favorite;
             persist();
         });
-        LinearLayout.LayoutParams favLp = new LinearLayout.LayoutParams(dp(54), dp(44));
+        LinearLayout.LayoutParams favLp = new LinearLayout.LayoutParams(
+                dp(compactTwoPane ? 40 : 54), dp(compactTwoPane ? 38 : 44));
         favLp.leftMargin = dp(6);
         actions.addView(fav, favLp);
 
@@ -482,7 +623,7 @@ public class MessageClientActivity extends Activity {
         TextView v = new TextView(this);
         v.setText(text);
         v.setTextColor(Color.WHITE);
-        v.setTextSize(11);
+        v.setTextSize(compactTwoPane ? 9 : 11);
         v.setPadding(dp(9), dp(4), dp(9), dp(4));
         v.setBackground(rounded(Color.rgb(53, 58, 66), 999, 0, 0));
         return v;
@@ -492,7 +633,7 @@ public class MessageClientActivity extends Activity {
         Button b = new Button(this);
         b.setText(label);
         b.setTextColor(TEXT);
-        b.setTextSize(13);
+        b.setTextSize(compactTwoPane ? 10 : 13);
         b.setAllCaps(false);
         b.setPadding(dp(4), 0, dp(4), 0);
         b.setBackground(rounded(PANEL2, 10, Color.rgb(62, 67, 76), 1));

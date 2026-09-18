@@ -121,13 +121,13 @@ public final class MainActivity extends Activity {
         final int baseBottom=dp(twoPane?7:9);
         root.setPadding(baseLeft,baseTop,baseRight,baseBottom);
         ViewCompat.setOnApplyWindowInsetsListener(root,(view,insets)->{
-            android.graphics.Insets bars=insets.toWindowInsets()
-                    .getInsets(android.view.WindowInsets.Type.systemBars());
+            androidx.core.graphics.Insets bars =
+                    insets.getInsets(WindowInsetsCompat.Type.systemBars());
             view.setPadding(
-                    baseLeft,
-                    baseTop+bars.top,
-                    baseRight,
-                    baseBottom+bars.bottom
+                    baseLeft + bars.left,
+                    baseTop + bars.top,
+                    baseRight + bars.right,
+                    baseBottom + bars.bottom
             );
             return insets;
         });

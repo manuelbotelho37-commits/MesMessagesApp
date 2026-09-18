@@ -70,6 +70,7 @@ public final class MessageStore {
         JSONArray array = toJsonArray(list);
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit().putString(KEY, array.toString()).apply();
+        AutoBackupManager.writeAsync(context, list);
     }
 
     public static String createBackup(List<MessageTemplate> list) {

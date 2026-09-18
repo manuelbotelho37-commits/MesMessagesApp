@@ -66,10 +66,104 @@ public class MessageClientActivity extends Activity {
         w.setStatusBarColor(BG);
         w.setNavigationBarColor(BG);
 
+        boolean twoPane = getResources().getConfiguration().screenWidthDp >= 600;
+
         LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
         root.setPadding(dp(14), dp(14), dp(14), dp(10));
+
+        if (twoPane) {
+            buildTwoPaneLayout(root);
+        } else {
+            buildSinglePaneLayout(root);
+        }
+
+        setContentView(root);
+
+        templates = MessageStore.load(this);
+        renderList();
+    }
+
+    private void buildTwoPaneLayout(LinearLayout root) {
+        root.setOrientation(LinearLayout.HORIZONTAL);
+
+        LinearLayout left = new LinearLayout(this);
+        left.setOrientation(LinearLayout.VERTICAL);
+        left.setPadding(0, 0, dp(14), 0);
+
+        left.addView(buildHeader());
+
+        View bubble = buildBubbleCard();
+        LinearLayout.LayoutParams bubbleLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        bubbleLp.topMargin = dp(14);
+        left.addView(bubble, bubbleLp);
+
+        View directInsert = buildDirectInsertCard();
+        LinearLayout.LayoutParams directLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        directLp.topMargin = dp(10);
+        left.addView(directInsert, directLp);
+
+        View searchRow = buildSearchRow();
+        LinearLayout.LayoutParams searchLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        searchLp.topMargin = dp(14);
+        left.addView(searchRow, searchLp);
+
+        View spacer = new View(this);
+        left.addView(spacer, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        Button add = buildAddButton();
+        LinearLayout.LayoutParams addLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(54));
+        addLp.topMargin = dp(12);
+        left.addView(add, addLp);
+
+        TextView local = new TextView(this);
+        local.setText("Enregistré sur ce téléphone");
+        local.setTextColor(MUTED);
+        local.setTextSize(11);
+        local.setGravity(Gravity.CENTER);
+        local.setPadding(0, dp(8), 0, dp(2));
+        left.addView(local);
+
+        LinearLayout right = new LinearLayout(this);
+        right.setOrientation(LinearLayout.VERTICAL);
+        right.setPadding(dp(16), 0, 0, 0);
+
+        TextView listTitle = new TextView(this);
+        listTitle.setText("Mes messages");
+        listTitle.setTextColor(TEXT);
+        listTitle.setTextSize(24);
+        listTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        listTitle.setPadding(0, dp(4), 0, dp(4));
+        right.addView(listTitle);
+
+        TextView listSub = new TextView(this);
+        listSub.setText("Faites défiler vos modèles et ouvrez-les avec « Voir tout »");
+        listSub.setTextColor(MUTED);
+        listSub.setTextSize(12);
+        listSub.setPadding(0, 0, 0, dp(8));
+        right.addView(listSub);
+
+        right.addView(buildMessagesScroll(), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        View divider = new View(this);
+        divider.setBackgroundColor(Color.rgb(45, 49, 56));
+
+        root.addView(left, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.MATCH_PARENT, 0.36f));
+        root.addView(divider, new LinearLayout.LayoutParams(dp(1),
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        root.addView(right, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.MATCH_PARENT, 0.64f));
+    }
+
+    private void buildSinglePaneLayout(LinearLayout root) {
+        root.setOrientation(LinearLayout.VERTICAL);
 
         root.addView(buildHeader());
 
@@ -91,6 +185,17 @@ public class MessageClientActivity extends Activity {
         searchLp.topMargin = dp(12);
         root.addView(searchRow, searchLp);
 
+        Button add = buildAddButton();
+        LinearLayout.LayoutParams addLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
+        addLp.topMargin = dp(10);
+        root.addView(add, addLp);
+
+        root.addView(buildMessagesScroll(), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+    }
+
+    private Button buildAddButton() {
         Button add = new Button(this);
         add.setText("+  Nouveau message");
         add.setTextColor(Color.WHITE);
@@ -98,25 +203,20 @@ public class MessageClientActivity extends Activity {
         add.setAllCaps(false);
         add.setBackground(rounded(ORANGE, 14, 0, 0));
         add.setOnClickListener(v -> showEditor(null));
-        LinearLayout.LayoutParams addLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
-        addLp.topMargin = dp(10);
-        root.addView(add, addLp);
+        return add;
+    }
 
+    private ScrollView buildMessagesScroll() {
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
+
         listContainer = new LinearLayout(this);
         listContainer.setOrientation(LinearLayout.VERTICAL);
         listContainer.setPadding(0, dp(10), 0, dp(24));
+
         scroll.addView(listContainer, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        root.addView(scroll, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-
-        setContentView(root);
-
-        templates = MessageStore.load(this);
-        renderList();
+        return scroll;
     }
 
     private View buildHeader() {

@@ -76,6 +76,12 @@ public class MessageClientActivity extends Activity {
         bubbleLp.topMargin = dp(12);
         root.addView(bubble, bubbleLp);
 
+        View directInsert = buildDirectInsertCard();
+        LinearLayout.LayoutParams directLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        directLp.topMargin = dp(8);
+        root.addView(directInsert, directLp);
+
         View searchRow = buildSearchRow();
         LinearLayout.LayoutParams searchLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -136,7 +142,7 @@ public class MessageClientActivity extends Activity {
         titles.addView(title);
 
         TextView sub = new TextView(this);
-        sub.setText("Touchez un message pour le copier");
+        sub.setText("Vos modèles prêts à insérer dans vos SMS");
         sub.setTextColor(MUTED);
         sub.setTextSize(13);
         titles.addView(sub);
@@ -181,6 +187,48 @@ public class MessageClientActivity extends Activity {
             else disableBubble();
         });
         card.addView(bubbleSwitch);
+
+        return card;
+    }
+
+    private View buildDirectInsertCard() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(14), dp(10), dp(10), dp(10));
+        card.setBackground(rounded(PANEL, 15, Color.rgb(48, 52, 59), 1));
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+
+        TextView title = new TextView(this);
+        title.setText("Insertion directe dans les SMS");
+        title.setTextColor(TEXT);
+        title.setTextSize(15);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        texts.addView(title);
+
+        TextView sub = new TextView(this);
+        sub.setText(MessageInsertAccessibilityService.isConnected()
+                ? "Activée ✓"
+                : "À activer une seule fois dans Android");
+        sub.setTextColor(MessageInsertAccessibilityService.isConnected()
+                ? Color.rgb(117, 214, 137) : MUTED);
+        sub.setTextSize(12);
+        texts.addView(sub);
+
+        card.addView(texts, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        Button activate = new Button(this);
+        activate.setText(MessageInsertAccessibilityService.isConnected() ? "Réglages" : "Activer");
+        activate.setAllCaps(false);
+        activate.setTextColor(Color.WHITE);
+        activate.setTextSize(13);
+        activate.setBackground(rounded(ORANGE, 11, 0, 0));
+        activate.setOnClickListener(v ->
+                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+        card.addView(activate, new LinearLayout.LayoutParams(dp(92), dp(44)));
 
         return card;
     }

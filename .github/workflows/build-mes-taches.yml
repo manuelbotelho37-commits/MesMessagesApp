@@ -3,6 +3,9 @@ on:
   push:
     branches: [mes-taches]
     paths: ['mes-taches/**', '.github/workflows/build-mes-taches.yml']
+  pull_request:
+    branches: [mes-taches]
+    paths: ['mes-taches/**', '.github/workflows/build-mes-taches.yml']
   workflow_dispatch:
 permissions:
   contents: write

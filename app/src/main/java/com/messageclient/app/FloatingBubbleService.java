@@ -151,7 +151,7 @@ public class FloatingBubbleService extends Service {
 
                     case MotionEvent.ACTION_UP:
                         if (dragging) {
-                            snapBubbleToNearestSide(size);
+                            saveBubblePosition();
                         } else {
                             togglePanel();
                         }
@@ -167,18 +167,8 @@ public class FloatingBubbleService extends Service {
         windowManager.addView(bubble, bubbleParams);
     }
 
-    private void snapBubbleToNearestSide(int size) {
-        if (bubble == null || bubbleParams == null || windowManager == null) return;
-
-        int screenW = getResources().getDisplayMetrics().widthPixels;
-        int maxX = Math.max(0, screenW - size);
-        int centerX = bubbleParams.x + size / 2;
-
-        bubbleParams.x = centerX < screenW / 2
-                ? dp(6)
-                : Math.max(dp(6), maxX - dp(6));
-
-        windowManager.updateViewLayout(bubble, bubbleParams);
+    private void saveBubblePosition() {
+        if (bubbleParams == null) return;
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .putInt(KEY_BUBBLE_X, bubbleParams.x)
                 .putInt(KEY_BUBBLE_Y, bubbleParams.y)
@@ -299,22 +289,6 @@ public class FloatingBubbleService extends Service {
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
         openLp.topMargin = dp(6);
         outer.addView(openApp, openLp);
-
-        Button hideBubble = new Button(this);
-        hideBubble.setText("Masquer la bulle");
-        hideBubble.setTextColor(TEXT);
-        hideBubble.setAllCaps(false);
-        hideBubble.setBackground(rounded(PANEL, 12, Color.rgb(65, 69, 77), 1));
-        hideBubble.setOnClickListener(v -> {
-            getSharedPreferences(PREFS, MODE_PRIVATE)
-                    .edit().putBoolean(KEY_BUBBLE, false).apply();
-            removePanel();
-            stopSelf();
-        });
-        LinearLayout.LayoutParams hideLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(46));
-        hideLp.topMargin = dp(6);
-        outer.addView(hideBubble, hideLp);
 
         int width = Math.min(dp(360),
                 getResources().getDisplayMetrics().widthPixels - dp(24));

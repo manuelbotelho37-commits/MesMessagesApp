@@ -5,29 +5,27 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.messageclient.manuel.stable'
+        applicationId 'com.capturecleaner.manuel'
         minSdk 26
         targetSdk 34
-        versionCode 7
-        versionName '2.6.0'
+        versionCode 1
+        versionName '1.0.0'
     }
 
     signingConfigs {
         stable {
-            def keyPath = System.getenv("MESSAGE_CLIENT_KEYSTORE")
+            def keyPath = System.getenv("CAPTURE_CLEANER_KEYSTORE")
             if (keyPath != null && !keyPath.isEmpty()) {
                 storeFile file(keyPath)
             }
             storePassword 'android'
-            keyAlias 'message-client-stable'
+            keyAlias 'capture-cleaner-stable'
             keyPassword 'android'
         }
     }
 
     buildTypes {
-        debug {
-            signingConfig signingConfigs.stable
-        }
+        debug { signingConfig signingConfigs.stable }
         release {
             signingConfig signingConfigs.stable
             minifyEnabled false

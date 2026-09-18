@@ -31,6 +31,11 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -48,6 +53,8 @@ public class MessageClientActivity extends Activity {
 
     private static final String PREFS = "message_client_settings";
     private static final String KEY_BUBBLE = "bubble_enabled";
+    private static final int REQ_BACKUP_CREATE = 4101;
+    private static final int REQ_BACKUP_OPEN = 4102;
 
     private LinearLayout listContainer;
     private EditText search;
@@ -112,6 +119,12 @@ public class MessageClientActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         searchLp.topMargin = dp(compactTwoPane ? 8 : 14);
         left.addView(searchRow, searchLp);
+
+        View backupRow = buildBackupRow();
+        LinearLayout.LayoutParams backupLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        backupLp.topMargin = dp(compactTwoPane ? 6 : 10);
+        left.addView(backupRow, backupLp);
 
         View spacer = new View(this);
         left.addView(spacer, new LinearLayout.LayoutParams(
@@ -299,6 +312,104 @@ public class MessageClientActivity extends Activity {
         return wrap;
     }
 
+    private View buildBackupRow() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+
+        Button save = smallButton(compactTwoPane ? "Sauver" : "Sauvegarder");
+        save.setOnClickListener(v -> startBackupExport());
+        row.addView(save, new LinearLayout.LayoutParams(
+                0, dp(compactTwoPane ? 36 : 42), 1f));
+
+        Button restore = smallButton("Restaurer");
+        restore.setOnClickListener(v -> startBackupImport());
+        LinearLayout.LayoutParams restoreLp = new LinearLayout.LayoutParams(
+                0, dp(compactTwoPane ? 36 : 42), 1f);
+        restoreLp.leftMargin = dp(5);
+        row.addView(restore, restoreLp);
+
+        return row;
+    }
+
+    private void startBackupExport() {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        intent.putExtra(Intent.EXTRA_TITLE, "Message-Client-sauvegarde.json");
+        startActivityForResult(intent, REQ_BACKUP_CREATE);
+    }
+
+    private void startBackupImport() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        startActivityForResult(intent, REQ_BACKUP_OPEN);
+    }
+
+    private void exportBackup(Uri uri) {
+        try (OutputStream out = getContentResolver().openOutputStream(uri, "w")) {
+            if (out == null) throw new Exception("Impossible d'ouvrir le fichier");
+            String data = MessageStore.createBackup(templates);
+            out.write(data.getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            Toast.makeText(this,
+                    templates.size() + " message(s) sauvegardé(s) ✓",
+                    Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Échec de la sauvegarde", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void importBackup(Uri uri) {
+        try (InputStream in = getContentResolver().openInputStream(uri)) {
+            if (in == null) throw new Exception("Impossible d'ouvrir le fichier");
+
+            BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(in, StandardCharsets.UTF_8));
+            StringBuilder raw = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                raw.append(line).append('\n');
+            }
+
+            List<MessageStore.MessageTemplate> restored =
+                    MessageStore.parseBackup(raw.toString());
+
+            new AlertDialog.Builder(this)
+                    .setTitle("Restaurer la sauvegarde")
+                    .setMessage("Cette sauvegarde contient " + restored.size()
+                            + " message(s).\n\nElle remplacera les messages actuellement enregistrés dans Message Client.")
+                    .setNegativeButton("Annuler", null)
+                    .setPositiveButton("Restaurer", (dialog, which) -> {
+                        templates = new ArrayList<>(restored);
+                        MessageStore.save(this, templates);
+                        expandedMessageIds.clear();
+                        renderList();
+                        Toast.makeText(this,
+                                restored.size() + " message(s) restauré(s) ✓",
+                                Toast.LENGTH_LONG).show();
+                    })
+                    .show();
+        } catch (Exception e) {
+            Toast.makeText(this,
+                    "Ce fichier n'est pas une sauvegarde Message Client valide",
+                    Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+
+        Uri uri = data.getData();
+        if (requestCode == REQ_BACKUP_CREATE) {
+            exportBackup(uri);
+        } else if (requestCode == REQ_BACKUP_OPEN) {
+            importBackup(uri);
+        }
+    }
+
     private void buildSinglePaneLayout(LinearLayout root) {
         root.setOrientation(LinearLayout.VERTICAL);
 
@@ -321,6 +432,12 @@ public class MessageClientActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         searchLp.topMargin = dp(12);
         root.addView(searchRow, searchLp);
+
+        View backupRow = buildBackupRow();
+        LinearLayout.LayoutParams backupLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        backupLp.topMargin = dp(8);
+        root.addView(backupRow, backupLp);
 
         Button add = buildAddButton();
         LinearLayout.LayoutParams addLp = new LinearLayout.LayoutParams(

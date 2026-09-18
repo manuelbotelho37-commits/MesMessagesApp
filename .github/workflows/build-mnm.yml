@@ -64,6 +64,17 @@ jobs:
           retention-days: 90
           if-no-files-found: error
 
+      - name: Prepare selected MNM icon
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p mes-notes/app/src/main/res/drawable-nodpi
+          : > "$RUNNER_TEMP/mnm-icon.b64"
+          for part in 00 01 02 03 04; do
+            curl -fsSL "https://raw.githubusercontent.com/manuelbotelho37-commits/MesMessagesApp/mnm-icon-data/icon_parts/part${part}.b64" >> "$RUNNER_TEMP/mnm-icon.b64"
+          done
+          base64 --decode "$RUNNER_TEMP/mnm-icon.b64" > mes-notes/app/src/main/res/drawable-nodpi/ic_mnm_final.png
+
       - name: Compile MNM
         run: gradle -p mes-notes --no-daemon lintDebug assembleRelease
 

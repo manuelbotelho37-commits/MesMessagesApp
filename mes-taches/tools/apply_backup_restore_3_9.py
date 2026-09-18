@@ -169,24 +169,34 @@ if "REQ_BACKUP_CREATE" not in main:
 button_anchor = '''        addButton=button("+ Ajouter",true); addButton.setId(ADD); addButton.setTextSize(compactWide?12:(wideLayout?18:20));'''
 if "Button backupButton=button(" not in main:
     backup_ui = '''        LinearLayout backupRow=new LinearLayout(this);
-        backupRow.setOrientation(compactWide?LinearLayout.VERTICAL:LinearLayout.HORIZONTAL);
+        backupRow.setOrientation(LinearLayout.VERTICAL);
         Button backupButton=button(TaskBackupManager.isConfigured(this)?"Sauvegarde ✓":"Sauvegarde",false);
         Button restoreButton=button("Restaurer",false);
         backupButton.setOnClickListener(v->startBackup());
         restoreButton.setOnClickListener(v->startRestore());
-        if (compactWide) {
-            backupButton.setTextSize(9); restoreButton.setTextSize(9);
-            backupButton.setPadding(dp(2),dp(2),dp(2),dp(2));
-            restoreButton.setPadding(dp(2),dp(2),dp(2),dp(2));
-            backupRow.addView(backupButton,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(36)));
-            LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(36));
-            rp.topMargin=dp(4); backupRow.addView(restoreButton,rp);
-        } else {
-            backupButton.setTextSize(13); restoreButton.setTextSize(13);
-            LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(44),1f);
-            bp.setMarginEnd(dp(6)); backupRow.addView(backupButton,bp);
-            backupRow.addView(restoreButton,new LinearLayout.LayoutParams(0,dp(44),1f));
-        }
+
+        // Toujours pleine largeur et sur une seule ligne : le Fold peut changer
+        // fortement de largeur entre écran fermé/ouvert et portrait/paysage.
+        float backupTextSize=compactWide?11:13;
+        int backupMinHeight=dp(compactWide?42:48);
+        backupButton.setTextSize(backupTextSize);
+        restoreButton.setTextSize(backupTextSize);
+        backupButton.setSingleLine(true);
+        restoreButton.setSingleLine(true);
+        backupButton.setMinHeight(backupMinHeight);
+        backupButton.setMinimumHeight(backupMinHeight);
+        restoreButton.setMinHeight(backupMinHeight);
+        restoreButton.setMinimumHeight(backupMinHeight);
+        backupButton.setPadding(dp(compactWide?4:10),dp(6),dp(compactWide?4:10),dp(6));
+        restoreButton.setPadding(dp(compactWide?4:10),dp(6),dp(compactWide?4:10),dp(6));
+
+        backupRow.addView(backupButton,new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams restoreParams=new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
+        restoreParams.topMargin=dp(5);
+        backupRow.addView(restoreButton,restoreParams);
+
         LinearLayout.LayoutParams backupRowParams=new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);
         backupRowParams.bottomMargin=dp(7);
@@ -312,4 +322,4 @@ gradle = re.sub(r"versionCode\s+\d+", "versionCode 110", gradle, count=1)
 gradle = re.sub(r"versionName\s+'[^']+'", "versionName '3.9.0-drive-backup'", gradle, count=1)
 GRADLE.write_text(gradle, encoding="utf-8")
 
-print("Insisto 3.9 : sauvegarde automatique Drive + boutons Sauvegarde / Restaurer")
+print("Insisto 3.9.1 : sauvegarde + restauration adaptatives Fold")

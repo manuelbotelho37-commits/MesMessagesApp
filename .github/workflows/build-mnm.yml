@@ -1,0 +1,90 @@
+name: MNM Android
+on:
+  push:
+    branches: [mes-notes]
+    paths: ['mes-notes/**', '.github/workflows/build-mnm.yml']
+  pull_request:
+    branches: [mes-notes]
+    paths: ['mes-notes/**', '.github/workflows/build-mnm.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: mnm-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Android SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Recover or create MNM signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEY_DIR="$RUNNER_TEMP/mnm-signing"
+          mkdir -p "$KEY_DIR"
+          ARTIFACT_ID=$(gh api --method GET "repos/$GITHUB_REPOSITORY/actions/artifacts" -f name=MNM-signing-key-v1 -f per_page=20 --jq '.artifacts[] | select(.expired == false) | .id' | head -n 1)
+          if [ -n "$ARTIFACT_ID" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" > "$RUNNER_TEMP/mnm-key.zip"
+            unzip -q "$RUNNER_TEMP/mnm-key.zip" -d "$KEY_DIR"
+          else
+            keytool -genkeypair -noprompt -keystore "$KEY_DIR/mnm.jks" -storepass android -keypass android -alias mnm -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=MNM"
+          fi
+          echo "NOTES_KEYSTORE=$KEY_DIR/mnm.jks" >> "$GITHUB_ENV"
+
+      - name: Preserve MNM signing key
+        uses: actions/upload-artifact@v4
+        with:
+          name: MNM-signing-key-v1
+          path: ${{ env.NOTES_KEYSTORE }}
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Compile MNM
+        run: gradle -p mes-notes --no-daemon lintDebug assembleRelease
+
+      - name: Prepare installer
+        run: cp mes-notes/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/MNM.apk"
+
+      - name: Installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MNM-apk
+          path: ${{ runner.temp }}/MNM.apk
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Make installer downloadable
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=mnm-v1.0
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$RUNNER_TEMP/MNM.apk" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "$RUNNER_TEMP/MNM.apk" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "MNM" --notes "MNM — notes simples, recherche instantanée et imports." --prerelease --latest=false
+          fi

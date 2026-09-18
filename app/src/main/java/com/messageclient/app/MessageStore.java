@@ -67,6 +67,53 @@ public final class MessageStore {
     }
 
     public static void save(Context context, List<MessageTemplate> list) {
+        JSONArray array = toJsonArray(list);
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().putString(KEY, array.toString()).apply();
+    }
+
+    public static String createBackup(List<MessageTemplate> list) {
+        try {
+            JSONObject root = new JSONObject();
+            root.put("format", "message-client-backup");
+            root.put("version", 1);
+            root.put("exportedAt", System.currentTimeMillis());
+            root.put("templates", toJsonArray(list));
+            return root.toString(2);
+        } catch (Exception e) {
+            return "{\"format\":\"message-client-backup\",\"version\":1,\"templates\":[]}";
+        }
+    }
+
+    public static List<MessageTemplate> parseBackup(String raw) throws Exception {
+        if (raw == null || raw.trim().isEmpty()) {
+            throw new IllegalArgumentException("Fichier vide");
+        }
+
+        String trimmed = raw.trim();
+        JSONArray array;
+
+        if (trimmed.startsWith("[")) {
+            array = new JSONArray(trimmed);
+        } else {
+            JSONObject root = new JSONObject(trimmed);
+            if (!"message-client-backup".equals(root.optString("format"))) {
+                throw new IllegalArgumentException("Ce fichier n'est pas une sauvegarde Message Client");
+            }
+            array = root.optJSONArray("templates");
+            if (array == null) {
+                throw new IllegalArgumentException("Sauvegarde invalide");
+            }
+        }
+
+        List<MessageTemplate> result = fromJsonArray(array);
+        if (result.isEmpty()) {
+            throw new IllegalArgumentException("Aucun message dans cette sauvegarde");
+        }
+        return result;
+    }
+
+    private static JSONArray toJsonArray(List<MessageTemplate> list) {
         JSONArray array = new JSONArray();
         try {
             for (MessageTemplate m : list) {
@@ -81,8 +128,26 @@ public final class MessageStore {
                 array.put(o);
             }
         } catch (Exception ignored) {}
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .edit().putString(KEY, array.toString()).apply();
+        return array;
+    }
+
+    private static List<MessageTemplate> fromJsonArray(JSONArray array) throws Exception {
+        List<MessageTemplate> result = new ArrayList<>();
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject o = array.getJSONObject(i);
+            String text = o.optString("text", "");
+            if (text.trim().isEmpty()) continue;
+            result.add(new MessageTemplate(
+                    o.optString("id", UUID.randomUUID().toString()),
+                    o.optString("title", "Message client"),
+                    o.optString("category", ""),
+                    text,
+                    o.optBoolean("favorite", false),
+                    o.optInt("useCount", 0),
+                    o.optLong("lastUsed", 0L)
+            ));
+        }
+        return result;
     }
 
     public static void markUsed(Context context, String id) {

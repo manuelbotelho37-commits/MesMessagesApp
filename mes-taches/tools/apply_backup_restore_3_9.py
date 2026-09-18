@@ -217,8 +217,8 @@ methods = r'''    private void startBackup() {
         }
         Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/octet-stream");
-        intent.putExtra(Intent.EXTRA_TITLE,"Insisto-sauvegarde.db");
+        intent.setType("application/json");
+        intent.putExtra(Intent.EXTRA_TITLE,"Insisto-sauvegarde.json");
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
                 |Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 |Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
@@ -318,8 +318,8 @@ MAIN.write_text(main, encoding="utf-8")
 
 # Version 3.9
 gradle = GRADLE.read_text(encoding="utf-8")
-gradle = re.sub(r"versionCode\s+\d+", "versionCode 112", gradle, count=1)
-gradle = re.sub(r"versionName\s+'[^']+'", "versionName '3.9.2-auto-backup'", gradle, count=1)
+gradle = re.sub(r"versionCode\s+\d+", "versionCode 113", gradle, count=1)
+gradle = re.sub(r"versionName\s+'[^']+'", "versionName '3.9.3-json-backup'", gradle, count=1)
 GRADLE.write_text(gradle, encoding="utf-8")
 
-print("Insisto 3.9.2 : sauvegarde automatique explicite + Fold")
+print("Insisto 3.9.3 : sauvegarde JSON lisible et restaurable")

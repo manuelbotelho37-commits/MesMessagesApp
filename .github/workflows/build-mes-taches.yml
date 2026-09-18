@@ -48,6 +48,7 @@ jobs:
           python3 mes-taches/tools/apply_long_task_text_fix.py
           python3 mes-taches/tools/apply_custom_snooze_choices.py
           python3 mes-taches/tools/apply_dark_mode_3_8.py
+          python3 mes-taches/tools/apply_backup_restore_3_9.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

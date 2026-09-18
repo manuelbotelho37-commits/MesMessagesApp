@@ -40,6 +40,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.core.content.FileProvider;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanner;
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions;
@@ -113,7 +115,23 @@ public final class MainActivity extends Activity {
         LinearLayout root=new LinearLayout(this);
         root.setOrientation(twoPane?LinearLayout.HORIZONTAL:LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
-        root.setPadding(dp(twoPane?8:9),dp(twoPane?5:9),dp(twoPane?8:9),dp(twoPane?5:9));
+        final int baseLeft=dp(twoPane?8:9);
+        final int baseTop=dp(twoPane?7:9);
+        final int baseRight=dp(twoPane?8:9);
+        final int baseBottom=dp(twoPane?7:9);
+        root.setPadding(baseLeft,baseTop,baseRight,baseBottom);
+        ViewCompat.setOnApplyWindowInsetsListener(root,(view,insets)->{
+            android.graphics.Insets bars=insets.toWindowInsets()
+                    .getInsets(android.view.WindowInsets.Type.systemBars());
+            view.setPadding(
+                    baseLeft,
+                    baseTop+bars.top,
+                    baseRight,
+                    baseBottom+bars.bottom
+            );
+            return insets;
+        });
+        ViewCompat.requestApplyInsets(root);
 
         LinearLayout notesPane=column();
         notesPane.setPadding(twoPane?dp(10):dp(3),0,dp(3),0);

@@ -1,29 +1,20 @@
 plugins { id 'com.android.application' }
 
 android {
-    namespace 'com.mesmessages.app'
+    namespace 'com.messageclient.app'
     compileSdk 35
 
-    signingConfigs {
-        debug {
-            storeFile rootProject.file('.signing/insisto.keystore')
-            storePassword 'Insisto2026'
-            keyAlias 'insisto'
-            keyPassword 'Insisto2026'
-        }
-    }
-
     defaultConfig {
-        applicationId 'com.insisto.manuel'
+        applicationId 'com.messageclient.manuel'
         minSdk 26
-        targetSdk 35
-        versionCode 6
-        versionName '1.5.0-insisto'
+        targetSdk 34
+        versionCode 1
+        versionName '1.0.0'
     }
 
     buildTypes {
-        debug {
-            signingConfig signingConfigs.debug
+        release {
+            minifyEnabled false
         }
     }
 

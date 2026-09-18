@@ -17,7 +17,7 @@ android {
             if (System.getenv('NOTES_KEYSTORE')) {
                 storeFile file(System.getenv('NOTES_KEYSTORE'))
                 storePassword 'android'
-                keyAlias 'mes-taches'
+                keyAlias 'mnm'
                 keyPassword 'android'
             }
         }

@@ -5,15 +5,31 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.messageclient.manuel.v2'
+        applicationId 'com.messageclient.manuel.stable'
         minSdk 26
         targetSdk 34
-        versionCode 4
-        versionName '1.6.0'
+        versionCode 1
+        versionName '2.0.0'
+    }
+
+    signingConfigs {
+        stable {
+            def keyPath = System.getenv("MESSAGE_CLIENT_KEYSTORE")
+            if (keyPath != null && !keyPath.isEmpty()) {
+                storeFile file(keyPath)
+            }
+            storePassword 'android'
+            keyAlias 'message-client-stable'
+            keyPassword 'android'
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig signingConfigs.stable
+        }
         release {
+            signingConfig signingConfigs.stable
             minifyEnabled false
         }
     }

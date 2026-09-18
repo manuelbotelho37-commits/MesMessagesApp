@@ -170,7 +170,7 @@ button_anchor = '''        addButton=button("+ Ajouter",true); addButton.setId(A
 if "Button backupButton=button(" not in main:
     backup_ui = '''        LinearLayout backupRow=new LinearLayout(this);
         backupRow.setOrientation(LinearLayout.VERTICAL);
-        Button backupButton=button(TaskBackupManager.isConfigured(this)?"Sauvegarde ✓":"Sauvegarde",false);
+        Button backupButton=button(TaskBackupManager.isConfigured(this)?"Sauvegarde automatique ✓":"Activer sauvegarde automatique",false);
         Button restoreButton=button("Restaurer",false);
         backupButton.setOnClickListener(v->startBackup());
         restoreButton.setOnClickListener(v->startRestore());
@@ -318,8 +318,8 @@ MAIN.write_text(main, encoding="utf-8")
 
 # Version 3.9
 gradle = GRADLE.read_text(encoding="utf-8")
-gradle = re.sub(r"versionCode\s+\d+", "versionCode 111", gradle, count=1)
-gradle = re.sub(r"versionName\s+'[^']+'", "versionName '3.9.1-fold-layout'", gradle, count=1)
+gradle = re.sub(r"versionCode\s+\d+", "versionCode 112", gradle, count=1)
+gradle = re.sub(r"versionName\s+'[^']+'", "versionName '3.9.2-auto-backup'", gradle, count=1)
 GRADLE.write_text(gradle, encoding="utf-8")
 
-print("Insisto 3.9.1 : boutons sauvegarde/restauration adaptatifs Fold")
+print("Insisto 3.9.2 : sauvegarde automatique explicite + Fold")

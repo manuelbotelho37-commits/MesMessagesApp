@@ -318,8 +318,8 @@ MAIN.write_text(main, encoding="utf-8")
 
 # Version 3.9
 gradle = GRADLE.read_text(encoding="utf-8")
-gradle = re.sub(r"versionCode\s+\d+", "versionCode 110", gradle, count=1)
-gradle = re.sub(r"versionName\s+'[^']+'", "versionName '3.9.0-drive-backup'", gradle, count=1)
+gradle = re.sub(r"versionCode\s+\d+", "versionCode 111", gradle, count=1)
+gradle = re.sub(r"versionName\s+'[^']+'", "versionName '3.9.1-fold-layout'", gradle, count=1)
 GRADLE.write_text(gradle, encoding="utf-8")
 
-print("Insisto 3.9.1 : sauvegarde + restauration adaptatives Fold")
+print("Insisto 3.9.1 : boutons sauvegarde/restauration adaptatifs Fold")

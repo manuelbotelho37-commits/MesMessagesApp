@@ -41,6 +41,11 @@ import android.widget.Toast;
 
 import androidx.core.content.FileProvider;
 
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanner;
+import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions;
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanning;
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -57,6 +62,7 @@ public final class MainActivity extends Activity {
     private static final int PICK_DOCUMENT=7102;
     private static final int PICK_BACKUP=7103;
     private static final int PICK_RESTORE=7104;
+    private static final int SCAN_DOCUMENT=7105;
 
     private static final int BG=0xfff5f7fb;
     private static final int WHITE=Color.WHITE;
@@ -752,20 +758,42 @@ public final class MainActivity extends Activity {
             Toast.makeText(this,"Cette note est verrouillée. Mets le verrou sur OFF pour ajouter un élément.",Toast.LENGTH_LONG).show();
             return;
         }
-        String[] items={"Photo","Document","Mail","SMS","Article Internet","Vidéo Internet"};
+        String[] items={"Scanner","Photo","Document","Mail","SMS","Article Internet","Vidéo Internet"};
         new AlertDialog.Builder(this)
                 .setTitle("Ajouter / Importer")
                 .setItems(items,(d,which)->{
                     importTargetId=noteId;
-                    if(which==0) pickPhoto();
-                    else if(which==1) pickDocument();
-                    else if(which==2) showTextImport(noteId,"mail","Mail","Colle ici le mail que tu veux garder.");
-                    else if(which==3) showTextImport(noteId,"sms","SMS","Colle ici le SMS que tu veux garder.");
-                    else if(which==4) showLinkImport(noteId,"article","Article Internet");
+                    if(which==0) startScanner();
+                    else if(which==1) pickPhoto();
+                    else if(which==2) pickDocument();
+                    else if(which==3) showTextImport(noteId,"mail","Mail","Colle ici le mail que tu veux garder.");
+                    else if(which==4) showTextImport(noteId,"sms","SMS","Colle ici le SMS que tu veux garder.");
+                    else if(which==5) showLinkImport(noteId,"article","Article Internet");
                     else showLinkImport(noteId,"video","Vidéo Internet");
                 })
                 .setNegativeButton("Annuler",null)
                 .show();
+    }
+
+    private void startScanner() {
+        GmsDocumentScannerOptions options=new GmsDocumentScannerOptions.Builder()
+                .setGalleryImportAllowed(true)
+                .setPageLimit(10)
+                .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_PDF)
+                .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
+                .build();
+
+        GmsDocumentScanner scanner=GmsDocumentScanning.getClient(options);
+        scanner.getStartScanIntent(this)
+                .addOnSuccessListener(intentSender->{
+                    try {
+                        startIntentSenderForResult(intentSender,SCAN_DOCUMENT,null,0,0,0);
+                    } catch(Exception ex) {
+                        Toast.makeText(this,"Impossible d’ouvrir le scanner.",Toast.LENGTH_LONG).show();
+                    }
+                })
+                .addOnFailureListener(ex->
+                        Toast.makeText(this,"Le scanner n’est pas disponible pour le moment.",Toast.LENGTH_LONG).show());
     }
 
     private void pickPhoto() {
@@ -951,6 +979,7 @@ public final class MainActivity extends Activity {
     }
 
     private String kindIcon(String kind) {
+        if("scan".equals(kind)) return "📑";
         if("photo".equals(kind)) return "🖼";
         if("document".equals(kind)) return "📄";
         if("mail".equals(kind)) return "✉";
@@ -1073,7 +1102,32 @@ public final class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
         super.onActivityResult(requestCode,resultCode,data);
-        if(resultCode!=RESULT_OK||data==null||data.getData()==null) return;
+        if(resultCode!=RESULT_OK||data==null) return;
+
+        if(requestCode==SCAN_DOCUMENT) {
+            try {
+                GmsDocumentScanningResult scan=GmsDocumentScanningResult.fromActivityResultIntent(data);
+                if(scan==null||scan.getPdf()==null) {
+                    Toast.makeText(this,"Aucun document scanné.",Toast.LENGTH_LONG).show();
+                    return;
+                }
+                Uri scanUri=scan.getPdf().getUri();
+                ImportedFile imported=copyIntoApp(scanUri);
+                String label="Document scanné";
+                int pages=scan.getPdf().getPageCount();
+                if(pages>1) label+=" · "+pages+" pages";
+                store.addAttachment(importTargetId,"scan",label,"","application/pdf",
+                        imported.file.getAbsolutePath());
+                BackupManager.scheduleBackup(this);
+                refresh();
+                Toast.makeText(this,"Scan ajouté à la note",Toast.LENGTH_LONG).show();
+            } catch(Exception ex) {
+                Toast.makeText(this,"Impossible d’enregistrer le scan.",Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
+
+        if(data.getData()==null) return;
         Uri uri=data.getData();
 
         if(requestCode==PICK_PHOTO) {

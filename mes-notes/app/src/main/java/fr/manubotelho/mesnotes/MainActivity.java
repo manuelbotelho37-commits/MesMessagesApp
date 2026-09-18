@@ -18,9 +18,16 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
 import android.text.Editable;
+import android.text.Html;
 import android.text.InputType;
+import android.text.Spannable;
+import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.text.style.BackgroundColorSpan;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.StyleSpan;
+import android.text.style.UnderlineSpan;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -393,7 +400,8 @@ public final class MainActivity extends Activity {
         lockParams.bottomMargin=dp(10);
         body.addView(detailLock,lockParams);
 
-        TextView content=text(note.content.trim().isEmpty()?"(Aucun texte)":note.content,17,INK,false);
+        TextView content=text("",17,INK,false);
+        content.setText(note.content.trim().isEmpty()?"(Aucun texte)":formattedContent(note));
         content.setTextIsSelectable(true);
         content.setPadding(0,0,0,dp(12));
         body.addView(content);
@@ -462,7 +470,7 @@ public final class MainActivity extends Activity {
         };
         new AlertDialog.Builder(this)
                 .setTitle(note.title)
-                .setMessage(note.content.trim().isEmpty()?null:note.content)
+                .setMessage(note.content.trim().isEmpty()?null:formattedContent(note))
                 .setItems(choices,(d,which)->{
                     if(which==0) {
                         if(note.locked) Toast.makeText(this,"Déverrouille d’abord la note.",Toast.LENGTH_LONG).show();
@@ -526,7 +534,42 @@ public final class MainActivity extends Activity {
         content.setVerticalScrollBarEnabled(true);
         content.setBackground(shape(WHITE,12,BORDER));
         content.setPadding(dp(12),dp(10),dp(12),dp(10));
-        if(existing!=null) content.setText(existing.content);
+        if(existing!=null) content.setText(formattedContent(existing));
+
+        HorizontalScrollView formatScroll=new HorizontalScrollView(this);
+        formatScroll.setHorizontalScrollBarEnabled(false);
+        formatScroll.setFillViewport(false);
+        formatScroll.setPadding(0,0,0,dp(7));
+
+        LinearLayout formatRow=new LinearLayout(this);
+        formatRow.setOrientation(LinearLayout.HORIZONTAL);
+
+        Button highlight=formatButton("Surligner");
+        highlight.setOnClickListener(v->applyTextFormat(content,"highlight"));
+        formatRow.addView(highlight,formatButtonParams());
+
+        Button underline=formatButton("Souligner");
+        underline.setOnClickListener(v->applyTextFormat(content,"underline"));
+        formatRow.addView(underline,formatButtonParams());
+
+        Button red=formatButton("Rouge");
+        red.setTextColor(RED);
+        red.setOnClickListener(v->applyTextFormat(content,"red"));
+        formatRow.addView(red,formatButtonParams());
+
+        Button bold=formatButton("Gras");
+        bold.setTypeface(Typeface.DEFAULT_BOLD);
+        bold.setOnClickListener(v->applyTextFormat(content,"bold"));
+        formatRow.addView(bold,formatButtonParams());
+
+        Button normal=formatButton("Normal");
+        normal.setOnClickListener(v->applyTextFormat(content,"normal"));
+        formatRow.addView(normal,formatButtonParams());
+
+        formatScroll.addView(formatRow);
+        form.addView(formatScroll,new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,dp(45)));
+
         form.addView(content,new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -547,12 +590,14 @@ public final class MainActivity extends Activity {
             save.setOnClickListener(v->{
                 String name=title.getText().toString().trim();
                 String body=content.getText().toString().trim();
+                String bodyHtml=Html.toHtml((Spanned)content.getText(),
+                        Html.TO_HTML_PARAGRAPH_LINES_CONSECUTIVE);
                 if(name.isEmpty()) {
                     title.setError("Donne un nom à la note.");
                     title.requestFocus();
                     return;
                 }
-                long id=store.save(existing==null?0:existing.id,name,body,
+                long id=store.save(existing==null?0:existing.id,name,body,bodyHtml,
                         existing!=null&&existing.favorite);
                 selectedId=id;
                 BackupManager.scheduleBackup(this);
@@ -562,6 +607,65 @@ public final class MainActivity extends Activity {
             });
         });
         dialog.show();
+    }
+
+    private CharSequence formattedContent(NoteStore.Note note) {
+        if(note==null) return "";
+        if(note.contentHtml==null||note.contentHtml.trim().isEmpty()) return note.content;
+        try {
+            return Html.fromHtml(note.contentHtml,
+                    Html.FROM_HTML_MODE_LEGACY|Html.FROM_HTML_OPTION_USE_CSS_COLORS);
+        } catch(Exception ex) {
+            return note.content;
+        }
+    }
+
+    private Button formatButton(String label) {
+        Button b=button(label,false);
+        b.setTextSize(13);
+        b.setPadding(dp(10),dp(4),dp(10),dp(4));
+        return b;
+    }
+
+    private LinearLayout.LayoutParams formatButtonParams() {
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,dp(38));
+        p.rightMargin=dp(6);
+        return p;
+    }
+
+    private void applyTextFormat(EditText editor,String type) {
+        Editable e=editor.getText();
+        int a=editor.getSelectionStart();
+        int b=editor.getSelectionEnd();
+        if(a<0||b<0||a==b) {
+            Toast.makeText(this,"Sélectionne d’abord un mot ou une phrase.",Toast.LENGTH_SHORT).show();
+            return;
+        }
+        int start=Math.min(a,b);
+        int end=Math.max(a,b);
+
+        if("normal".equals(type)) {
+            removeSpans(e,start,end,BackgroundColorSpan.class);
+            removeSpans(e,start,end,ForegroundColorSpan.class);
+            removeSpans(e,start,end,UnderlineSpan.class);
+            removeSpans(e,start,end,StyleSpan.class);
+        } else if("highlight".equals(type)) {
+            e.setSpan(new BackgroundColorSpan(0xfffff59d),start,end,Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        } else if("underline".equals(type)) {
+            e.setSpan(new UnderlineSpan(),start,end,Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        } else if("red".equals(type)) {
+            e.setSpan(new ForegroundColorSpan(0xffd32f2f),start,end,Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        } else if("bold".equals(type)) {
+            e.setSpan(new StyleSpan(Typeface.BOLD),start,end,Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        editor.requestFocus();
+        editor.setSelection(end);
+    }
+
+    private <T> void removeSpans(Editable e,int start,int end,Class<T> clazz) {
+        T[] spans=e.getSpans(start,end,clazz);
+        for(T span:spans) e.removeSpan(span);
     }
 
     private void editSelected() {

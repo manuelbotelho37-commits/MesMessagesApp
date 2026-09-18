@@ -5,6 +5,8 @@ import android.os.Bundle;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
+import java.util.Locale;
+
 public class MessageInsertAccessibilityService extends AccessibilityService {
     private static volatile MessageInsertAccessibilityService instance;
 
@@ -49,6 +51,12 @@ public class MessageInsertAccessibilityService extends AccessibilityService {
 
         CharSequence existingCs = target.getText();
         String existing = existingCs == null ? "" : existingCs.toString();
+        CharSequence hintCs = target.getHintText();
+
+        // Google Messages may expose its placeholder ("Message RCS") as node text.
+        // Never prepend that placeholder to the user's real message.
+        if (isPlaceholder(existing, hintCs)) existing = "";
+
         String newText;
         if (existing.trim().isEmpty()) {
             newText = text;
@@ -88,6 +96,22 @@ public class MessageInsertAccessibilityService extends AccessibilityService {
             if (found != null) return found;
         }
         return null;
+    }
+
+    private static boolean isPlaceholder(String existing, CharSequence hintCs) {
+        String e = existing == null ? "" : existing.trim();
+        if (e.isEmpty()) return true;
+
+        if (hintCs != null) {
+            String hint = hintCs.toString().trim();
+            if (!hint.isEmpty() && e.equalsIgnoreCase(hint)) return true;
+        }
+
+        String n = e.toLowerCase(Locale.ROOT);
+        return n.equals("message rcs")
+                || n.equals("message texte")
+                || n.equals("message sms")
+                || n.equals("message");
     }
 
     private static boolean isSupportedMessagingPackage(String pkg) {

@@ -1,0 +1,37 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'fr.manubotelho.mesnotes'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'fr.manubotelho.mesnotes'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0'
+    }
+
+    signingConfigs {
+        release {
+            if (System.getenv('NOTES_KEYSTORE')) {
+                storeFile file(System.getenv('NOTES_KEYSTORE'))
+                storePassword 'android'
+                keyAlias 'mes-taches'
+                keyPassword 'android'
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

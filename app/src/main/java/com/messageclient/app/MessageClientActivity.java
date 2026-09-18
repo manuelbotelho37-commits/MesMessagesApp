@@ -315,35 +315,46 @@ public class MessageClientActivity extends Activity {
     }
 
     private View buildBackupRow() {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
+        boolean narrow = isNarrowLeftPane();
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(narrow ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
 
         boolean autoConfigured = AutoBackupManager.isConfigured(this);
-        autoBackupButton = smallButton(autoBackupLabel(autoConfigured));
+        autoBackupButton = smallButton(autoConfigured ? "Sauvegarde auto ✓" : "Sauvegarde auto");
         autoBackupButton.setSingleLine(true);
-        if (isNarrowLeftPane()) autoBackupButton.setTextSize(11);
+        autoBackupButton.setTextSize(narrow ? 10 : 12);
         autoBackupButton.setOnClickListener(v -> startAutoBackupSetup());
-        row.addView(autoBackupButton, new LinearLayout.LayoutParams(
-                0, dp(compactTwoPane ? 36 : 42), 1f));
 
         Button restore = smallButton("Restaurer");
+        restore.setSingleLine(true);
+        restore.setTextSize(narrow ? 11 : 12);
         restore.setOnClickListener(v -> startBackupImport());
-        LinearLayout.LayoutParams restoreLp = new LinearLayout.LayoutParams(
-                0, dp(compactTwoPane ? 36 : 42), 1f);
-        restoreLp.leftMargin = dp(5);
-        row.addView(restore, restoreLp);
 
-        return row;
+        if (narrow) {
+            box.addView(autoBackupButton, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(40)));
+
+            LinearLayout.LayoutParams restoreLp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(40));
+            restoreLp.topMargin = dp(6);
+            box.addView(restore, restoreLp);
+        } else {
+            box.addView(autoBackupButton, new LinearLayout.LayoutParams(
+                    0, dp(42), 1f));
+
+            LinearLayout.LayoutParams restoreLp = new LinearLayout.LayoutParams(
+                    0, dp(42), 1f);
+            restoreLp.leftMargin = dp(6);
+            box.addView(restore, restoreLp);
+        }
+
+        return box;
     }
 
     private boolean isNarrowLeftPane() {
         float leftPaneDp = getResources().getConfiguration().screenWidthDp * 0.36f;
         return leftPaneDp < 280f;
-    }
-
-    private String autoBackupLabel(boolean configured) {
-        if (isNarrowLeftPane()) return configured ? "Auto ✓" : "Auto";
-        return configured ? "Sauvegarde auto ✓" : "Sauvegarde auto";
     }
 
     private void startAutoBackupSetup() {
@@ -371,7 +382,7 @@ public class MessageClientActivity extends Activity {
 
             AutoBackupManager.setBackupUri(this, uri);
             if (autoBackupButton != null) {
-                autoBackupButton.setText(autoBackupLabel(true));
+                autoBackupButton.setText("Sauvegarde auto ✓");
             }
             Toast.makeText(this,
                     "Sauvegarde automatique activée ✓",

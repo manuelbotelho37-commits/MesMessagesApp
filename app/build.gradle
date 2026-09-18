@@ -5,11 +5,11 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.messageclient.manuel'
+        applicationId 'com.messageclient.manuel.v2'
         minSdk 26
         targetSdk 34
-        versionCode 3
-        versionName '1.2.0'
+        versionCode 1
+        versionName '1.3.0'
     }
 
     buildTypes {

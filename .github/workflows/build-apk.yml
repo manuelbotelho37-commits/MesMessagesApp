@@ -1,14 +1,20 @@
 name: Build Android APK
-# Stable signing cache for future updates
 
 on:
   workflow_dispatch:
   push:
     branches: [ message-client ]
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,17 +36,45 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Keep the same Android signing key
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: message-client-debug-signing-v1
+      - name: Restore or create permanent Message Client key
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEY_DIR="$RUNNER_TEMP/message-client-stable-signing"
+          KEY_FILE="$KEY_DIR/message-client-stable.jks"
+          mkdir -p "$KEY_DIR"
 
-      - name: Build debug APK
-        run: gradle assembleDebug
+          ARTIFACT_ID=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=MessageClient-signing-key-stable-v1&per_page=100"             --jq '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | last | .id // empty' || true)
+
+          if [ -n "$ARTIFACT_ID" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" > "$RUNNER_TEMP/message-client-key.zip"
+            unzip -q -o "$RUNNER_TEMP/message-client-key.zip" -d "$KEY_DIR"
+          fi
+
+          if [ ! -f "$KEY_FILE" ]; then
+            keytool -genkeypair -noprompt               -keystore "$KEY_FILE"               -storepass android               -keypass android               -alias message-client-stable               -keyalg RSA               -keysize 2048               -validity 10000               -dname "CN=Message Client, OU=Mobile, O=Manuel Botelho, L=Tours, ST=Centre-Val de Loire, C=FR"
+          fi
+
+          echo "MESSAGE_CLIENT_KEYSTORE=$KEY_FILE" >> "$GITHUB_ENV"
+
+      - name: Build stable APK
+        run: gradle assembleRelease
+
+      - name: Preserve permanent signing key
+        uses: actions/upload-artifact@v4
+        with:
+          name: MessageClient-signing-key-stable-v1
+          path: ${{ env.MESSAGE_CLIENT_KEYSTORE }}
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Prepare installer
+        run: cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/Message-Client-2.0.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Message-Client-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Message-Client-2.0
+          path: ${{ runner.temp }}/Message-Client-2.0.apk
+          retention-days: 90
+          if-no-files-found: error

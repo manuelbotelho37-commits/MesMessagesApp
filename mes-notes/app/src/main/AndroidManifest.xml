@@ -3,8 +3,8 @@
     <application
         android:allowBackup="true"
         android:label="MNM"
-        android:icon="@drawable/ic_mnm"
-        android:roundIcon="@drawable/ic_mnm"
+        android:icon="@drawable/ic_mnm_final"
+        android:roundIcon="@drawable/ic_mnm_final"
         android:theme="@style/AppTheme"
         android:supportsRtl="true">
 

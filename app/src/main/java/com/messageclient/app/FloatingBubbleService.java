@@ -37,6 +37,8 @@ public class FloatingBubbleService extends Service {
     private static final int PANEL = Color.rgb(29, 32, 37);
     private static final int TEXT = Color.rgb(245, 246, 247);
     private static final int MUTED = Color.rgb(166, 171, 180);
+    private static final String PREFS = "message_client_settings";
+    private static final String KEY_BUBBLE = "bubble_enabled";
 
     private WindowManager windowManager;
     private TextView bubble;
@@ -85,48 +87,12 @@ public class FloatingBubbleService extends Service {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT);
-        bubbleParams.gravity = Gravity.TOP | Gravity.START;
-        bubbleParams.x = Math.max(dp(8),
-                getResources().getDisplayMetrics().widthPixels - size - dp(12));
-        bubbleParams.y = dp(260);
+        // Fixed position: the bubble cannot be dragged accidentally.
+        bubbleParams.gravity = Gravity.END | Gravity.CENTER_VERTICAL;
+        bubbleParams.x = dp(6);
+        bubbleParams.y = 0;
 
-        bubble.setOnTouchListener(new View.OnTouchListener() {
-            private int startX, startY;
-            private float downX, downY;
-            private boolean moved;
-
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getActionMasked()) {
-                    case MotionEvent.ACTION_DOWN:
-                        startX = bubbleParams.x;
-                        startY = bubbleParams.y;
-                        downX = event.getRawX();
-                        downY = event.getRawY();
-                        moved = false;
-                        return true;
-
-                    case MotionEvent.ACTION_MOVE:
-                        int dx = Math.round(event.getRawX() - downX);
-                        int dy = Math.round(event.getRawY() - downY);
-                        if (Math.abs(dx) > dp(5) || Math.abs(dy) > dp(5)) moved = true;
-
-                        int maxX = Math.max(0,
-                                getResources().getDisplayMetrics().widthPixels - bubble.getWidth());
-                        int maxY = Math.max(0,
-                                getResources().getDisplayMetrics().heightPixels - bubble.getHeight());
-                        bubbleParams.x = clamp(startX + dx, 0, maxX);
-                        bubbleParams.y = clamp(startY + dy, 0, maxY);
-                        windowManager.updateViewLayout(bubble, bubbleParams);
-                        return true;
-
-                    case MotionEvent.ACTION_UP:
-                        if (!moved) togglePanel();
-                        return true;
-                }
-                return false;
-            }
-        });
+        bubble.setOnClickListener(v -> togglePanel());
 
         windowManager.addView(bubble, bubbleParams);
     }
@@ -242,6 +208,22 @@ public class FloatingBubbleService extends Service {
         openLp.topMargin = dp(6);
         outer.addView(openApp, openLp);
 
+        Button hideBubble = new Button(this);
+        hideBubble.setText("Masquer la bulle");
+        hideBubble.setTextColor(TEXT);
+        hideBubble.setAllCaps(false);
+        hideBubble.setBackground(rounded(PANEL, 12, Color.rgb(65, 69, 77), 1));
+        hideBubble.setOnClickListener(v -> {
+            getSharedPreferences(PREFS, MODE_PRIVATE)
+                    .edit().putBoolean(KEY_BUBBLE, false).apply();
+            removePanel();
+            stopSelf();
+        });
+        LinearLayout.LayoutParams hideLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(46));
+        hideLp.topMargin = dp(6);
+        outer.addView(hideBubble, hideLp);
+
         int width = Math.min(dp(360),
                 getResources().getDisplayMetrics().widthPixels - dp(24));
         int height = Math.min(dp(520),
@@ -327,10 +309,6 @@ public class FloatingBubbleService extends Service {
 
     private int dp(int v) {
         return Math.round(v * getResources().getDisplayMetrics().density);
-    }
-
-    private int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
     }
 
     @Override

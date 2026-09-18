@@ -55,11 +55,13 @@ public class MessageClientActivity extends Activity {
     private static final String KEY_BUBBLE = "bubble_enabled";
     private static final int REQ_BACKUP_CREATE = 4101;
     private static final int REQ_BACKUP_OPEN = 4102;
+    private static final int REQ_AUTO_BACKUP = 4103;
 
     private LinearLayout listContainer;
     private EditText search;
     private CheckBox favoritesOnly;
     private Switch bubbleSwitch;
+    private Button autoBackupButton;
     private List<MessageStore.MessageTemplate> templates = new ArrayList<>();
     private final Set<String> expandedMessageIds = new HashSet<>();
     private boolean waitingOverlayPermission = false;
@@ -316,9 +318,12 @@ public class MessageClientActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
 
-        Button save = smallButton(compactTwoPane ? "Sauver" : "Sauvegarder");
-        save.setOnClickListener(v -> startBackupExport());
-        row.addView(save, new LinearLayout.LayoutParams(
+        boolean autoConfigured = AutoBackupManager.isConfigured(this);
+        autoBackupButton = smallButton(autoConfigured
+                ? (compactTwoPane ? "Auto ✓" : "Sauvegarde auto ✓")
+                : (compactTwoPane ? "Auto" : "Sauvegarde auto"));
+        autoBackupButton.setOnClickListener(v -> startAutoBackupSetup());
+        row.addView(autoBackupButton, new LinearLayout.LayoutParams(
                 0, dp(compactTwoPane ? 36 : 42), 1f));
 
         Button restore = smallButton("Restaurer");
@@ -329,6 +334,43 @@ public class MessageClientActivity extends Activity {
         row.addView(restore, restoreLp);
 
         return row;
+    }
+
+    private void startAutoBackupSetup() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        startActivityForResult(intent, REQ_AUTO_BACKUP);
+    }
+
+    private void configureAutoBackup(Uri uri, Intent data) {
+        try {
+            int takeFlags = data.getFlags()
+                    & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            getContentResolver().takePersistableUriPermission(uri, takeFlags);
+
+            if (!AutoBackupManager.writeNow(this, uri, templates)) {
+                Toast.makeText(this,
+                        "Impossible d'écrire dans ce fichier",
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            AutoBackupManager.setBackupUri(this, uri);
+            if (autoBackupButton != null) {
+                autoBackupButton.setText(compactTwoPane ? "Auto ✓" : "Sauvegarde auto ✓");
+            }
+            Toast.makeText(this,
+                    "Sauvegarde automatique activée ✓",
+                    Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this,
+                    "Impossible d'activer la sauvegarde automatique avec ce fichier",
+                    Toast.LENGTH_LONG).show();
+        }
     }
 
     private void startBackupExport() {
@@ -403,7 +445,9 @@ public class MessageClientActivity extends Activity {
         if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
 
         Uri uri = data.getData();
-        if (requestCode == REQ_BACKUP_CREATE) {
+        if (requestCode == REQ_AUTO_BACKUP) {
+            configureAutoBackup(uri, data);
+        } else if (requestCode == REQ_BACKUP_CREATE) {
             exportBackup(uri);
         } else if (requestCode == REQ_BACKUP_OPEN) {
             importBackup(uri);

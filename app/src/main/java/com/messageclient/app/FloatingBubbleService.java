@@ -17,6 +17,7 @@ import android.os.Build;
 import android.os.IBinder;
 import android.provider.Settings;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -38,6 +39,8 @@ public class FloatingBubbleService extends Service {
     private static final int MUTED = Color.rgb(166, 171, 180);
     private static final String PREFS = "message_client_settings";
     private static final String KEY_BUBBLE = "bubble_enabled";
+    private static final String KEY_BUBBLE_X = "bubble_x";
+    private static final String KEY_BUBBLE_Y = "bubble_y";
 
     private WindowManager windowManager;
     private TextView bubble;
@@ -86,14 +89,104 @@ public class FloatingBubbleService extends Service {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT);
-        // Fixed position: the bubble cannot be dragged accidentally.
-        bubbleParams.gravity = Gravity.END | Gravity.CENTER_VERTICAL;
-        bubbleParams.x = dp(6);
-        bubbleParams.y = 0;
+        bubbleParams.gravity = Gravity.TOP | Gravity.START;
 
-        bubble.setOnClickListener(v -> togglePanel());
+        int screenW = getResources().getDisplayMetrics().widthPixels;
+        int screenH = getResources().getDisplayMetrics().heightPixels;
+        int maxX = Math.max(0, screenW - size);
+        int maxY = Math.max(0, screenH - size);
+
+        int savedX = getSharedPreferences(PREFS, MODE_PRIVATE)
+                .getInt(KEY_BUBBLE_X, maxX - dp(8));
+        int savedY = getSharedPreferences(PREFS, MODE_PRIVATE)
+                .getInt(KEY_BUBBLE_Y, Math.max(dp(80), screenH / 2 - size / 2));
+
+        bubbleParams.x = clamp(savedX, dp(4), Math.max(dp(4), maxX - dp(4)));
+        bubbleParams.y = clamp(savedY, dp(60), Math.max(dp(60), maxY - dp(90)));
+
+        bubble.setOnTouchListener(new View.OnTouchListener() {
+            private int startX;
+            private int startY;
+            private float downRawX;
+            private float downRawY;
+            private long downAt;
+            private boolean dragging;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        startX = bubbleParams.x;
+                        startY = bubbleParams.y;
+                        downRawX = event.getRawX();
+                        downRawY = event.getRawY();
+                        downAt = System.currentTimeMillis();
+                        dragging = false;
+                        return true;
+
+                    case MotionEvent.ACTION_MOVE:
+                        int dx = Math.round(event.getRawX() - downRawX);
+                        int dy = Math.round(event.getRawY() - downRawY);
+                        long held = System.currentTimeMillis() - downAt;
+
+                        if (!dragging && held >= 220
+                                && (Math.abs(dx) > dp(6) || Math.abs(dy) > dp(6))) {
+                            dragging = true;
+                            removePanel();
+                        }
+
+                        if (dragging) {
+                            int currentMaxX = Math.max(0,
+                                    getResources().getDisplayMetrics().widthPixels - size);
+                            int currentMaxY = Math.max(0,
+                                    getResources().getDisplayMetrics().heightPixels - size);
+
+                            bubbleParams.x = clamp(startX + dx, dp(4),
+                                    Math.max(dp(4), currentMaxX - dp(4)));
+                            bubbleParams.y = clamp(startY + dy, dp(60),
+                                    Math.max(dp(60), currentMaxY - dp(90)));
+                            windowManager.updateViewLayout(bubble, bubbleParams);
+                        }
+                        return true;
+
+                    case MotionEvent.ACTION_UP:
+                        if (dragging) {
+                            snapBubbleToNearestSide(size);
+                        } else {
+                            togglePanel();
+                        }
+                        return true;
+
+                    case MotionEvent.ACTION_CANCEL:
+                        return true;
+                }
+                return false;
+            }
+        });
 
         windowManager.addView(bubble, bubbleParams);
+    }
+
+    private void snapBubbleToNearestSide(int size) {
+        if (bubble == null || bubbleParams == null || windowManager == null) return;
+
+        int screenW = getResources().getDisplayMetrics().widthPixels;
+        int maxX = Math.max(0, screenW - size);
+        int centerX = bubbleParams.x + size / 2;
+
+        bubbleParams.x = centerX < screenW / 2
+                ? dp(6)
+                : Math.max(dp(6), maxX - dp(6));
+
+        windowManager.updateViewLayout(bubble, bubbleParams);
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .putInt(KEY_BUBBLE_X, bubbleParams.x)
+                .putInt(KEY_BUBBLE_Y, bubbleParams.y)
+                .apply();
+    }
+
+    private int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private void togglePanel() {

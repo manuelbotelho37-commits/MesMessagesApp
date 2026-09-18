@@ -15,10 +15,10 @@ final class NoteStore extends SQLiteOpenHelper {
     static final class Note {
         final long id;
         final String title, content;
-        final boolean favorite;
+        final boolean favorite, locked;
         final long updatedAt;
-        Note(long id, String title, String content, boolean favorite, long updatedAt) {
-            this.id=id; this.title=title; this.content=content; this.favorite=favorite; this.updatedAt=updatedAt;
+        Note(long id, String title, String content, boolean favorite, boolean locked, long updatedAt) {
+            this.id=id; this.title=title; this.content=content; this.favorite=favorite; this.locked=locked; this.updatedAt=updatedAt;
         }
     }
 
@@ -32,10 +32,10 @@ final class NoteStore extends SQLiteOpenHelper {
         }
     }
 
-    NoteStore(Context context) { super(context, NAME, null, 2); }
+    NoteStore(Context context) { super(context, NAME, null, 3); }
 
     @Override public void onCreate(SQLiteDatabase db) {
-        db.execSQL("CREATE TABLE notes (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, content TEXT NOT NULL DEFAULT '', favorite INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)");
+        db.execSQL("CREATE TABLE notes (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, content TEXT NOT NULL DEFAULT '', favorite INTEGER NOT NULL DEFAULT 0, locked INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX notes_order ON notes(favorite DESC, updated_at DESC, id DESC)");
         db.execSQL("CREATE TABLE attachments (id INTEGER PRIMARY KEY AUTOINCREMENT, note_id INTEGER NOT NULL, kind TEXT NOT NULL, label TEXT NOT NULL, value TEXT NOT NULL DEFAULT '', mime_type TEXT, local_path TEXT, created_at INTEGER NOT NULL)");
         db.execSQL("CREATE INDEX attachments_note ON attachments(note_id, created_at, id)");
@@ -45,6 +45,9 @@ final class NoteStore extends SQLiteOpenHelper {
         if (oldVersion < 2) {
             db.execSQL("CREATE TABLE IF NOT EXISTS attachments (id INTEGER PRIMARY KEY AUTOINCREMENT, note_id INTEGER NOT NULL, kind TEXT NOT NULL, label TEXT NOT NULL, value TEXT NOT NULL DEFAULT '', mime_type TEXT, local_path TEXT, created_at INTEGER NOT NULL)");
             db.execSQL("CREATE INDEX IF NOT EXISTS attachments_note ON attachments(note_id, created_at, id)");
+        }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE notes ADD COLUMN locked INTEGER NOT NULL DEFAULT 0");
         }
     }
 
@@ -63,10 +66,10 @@ final class NoteStore extends SQLiteOpenHelper {
 
     Note get(long id) {
         try (Cursor c=getReadableDatabase().query("notes",
-                new String[]{"id","title","content","favorite","updated_at"},
+                new String[]{"id","title","content","favorite","locked","updated_at"},
                 "id=?",new String[]{Long.toString(id)},null,null,null)) {
             if (!c.moveToFirst()) return null;
-            return new Note(c.getLong(0),c.getString(1),c.getString(2),c.getInt(3)==1,c.getLong(4));
+            return new Note(c.getLong(0),c.getString(1),c.getString(2),c.getInt(3)==1,c.getInt(4)==1,c.getLong(5));
         }
     }
 
@@ -81,9 +84,9 @@ final class NoteStore extends SQLiteOpenHelper {
             args=new String[]{like,like,like,like};
         }
         try (Cursor c=getReadableDatabase().query("notes",
-                new String[]{"id","title","content","favorite","updated_at"},
+                new String[]{"id","title","content","favorite","locked","updated_at"},
                 selection,args,null,null,"favorite DESC, updated_at DESC, id DESC")) {
-            while(c.moveToNext()) out.add(new Note(c.getLong(0),c.getString(1),c.getString(2),c.getInt(3)==1,c.getLong(4)));
+            while(c.moveToNext()) out.add(new Note(c.getLong(0),c.getString(1),c.getString(2),c.getInt(3)==1,c.getInt(4)==1,c.getLong(5)));
         }
         return out;
     }
@@ -91,6 +94,12 @@ final class NoteStore extends SQLiteOpenHelper {
     void setFavorite(long id,boolean favorite) {
         ContentValues v=new ContentValues();
         v.put("favorite",favorite?1:0); v.put("updated_at",System.currentTimeMillis());
+        getWritableDatabase().update("notes",v,"id=?",new String[]{Long.toString(id)});
+    }
+
+    void setLocked(long id,boolean locked) {
+        ContentValues v=new ContentValues();
+        v.put("locked",locked?1:0);
         getWritableDatabase().update("notes",v,"id=?",new String[]{Long.toString(id)});
     }
 

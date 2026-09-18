@@ -1,4 +1,5 @@
 name: Build Android APK
+# Stable signing cache for future updates
 
 on:
   workflow_dispatch:

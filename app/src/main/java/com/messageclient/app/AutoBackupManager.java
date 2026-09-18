@@ -6,7 +6,6 @@ import android.net.Uri;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -48,15 +47,18 @@ public final class AutoBackupManager {
         if (uri == null) return;
 
         Context appContext = context.getApplicationContext();
-        List<MessageStore.MessageTemplate> snapshot = new ArrayList<>(templates);
-        EXECUTOR.execute(() -> writeNow(appContext, uri, snapshot));
+        String data = MessageStore.createBackup(templates);
+        EXECUTOR.execute(() -> writeData(appContext, uri, data));
     }
 
     public static boolean writeNow(Context context, Uri uri,
                                    List<MessageStore.MessageTemplate> templates) {
+        return writeData(context, uri, MessageStore.createBackup(templates));
+    }
+
+    private static boolean writeData(Context context, Uri uri, String data) {
         try (OutputStream out = context.getContentResolver().openOutputStream(uri, "wt")) {
             if (out == null) return false;
-            String data = MessageStore.createBackup(templates);
             out.write(data.getBytes(StandardCharsets.UTF_8));
             out.flush();
             return true;

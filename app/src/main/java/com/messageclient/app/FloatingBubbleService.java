@@ -17,7 +17,6 @@ import android.os.Build;
 import android.os.IBinder;
 import android.provider.Settings;
 import android.view.Gravity;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -128,7 +127,7 @@ public class FloatingBubbleService extends Service {
         outer.addView(header);
 
         TextView hint = new TextView(this);
-        hint.setText("Touchez un message : il est copié puis cette fenêtre se ferme.");
+        hint.setText("Touchez un message : il est inséré directement dans votre SMS.");
         hint.setTextColor(MUTED);
         hint.setTextSize(12);
         hint.setPadding(0, dp(4), 0, dp(8));
@@ -242,11 +241,19 @@ public class FloatingBubbleService extends Service {
     }
 
     private void copyAndClose(MessageStore.MessageTemplate m) {
-        ClipboardManager cm =
-                (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        cm.setPrimaryClip(ClipData.newPlainText(m.title, m.text));
+        boolean inserted = MessageInsertAccessibilityService.insertIntoCurrentMessage(m.text);
         MessageStore.markUsed(this, m.id);
-        Toast.makeText(this, "Message copié ✓", Toast.LENGTH_SHORT).show();
+
+        if (inserted) {
+            Toast.makeText(this, "Message inséré ✓", Toast.LENGTH_SHORT).show();
+        } else {
+            ClipboardManager cm =
+                    (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(ClipData.newPlainText(m.title, m.text));
+            Toast.makeText(this,
+                    "Insertion directe non disponible : message copié ✓",
+                    Toast.LENGTH_LONG).show();
+        }
         removePanel();
     }
 

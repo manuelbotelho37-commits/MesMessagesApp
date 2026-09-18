@@ -73,6 +73,7 @@ public final class MainActivity extends Activity {
     private Button editButton;
     private Button copyButton;
     private Button favoriteButton;
+    private Button lockButton;
     private Button importButton;
     private Button elementsButton;
     private Button deleteButton;
@@ -222,6 +223,10 @@ public final class MainActivity extends Activity {
         favoriteButton.setOnClickListener(v->toggleFavorite());
         pane.addView(favoriteButton,fullButtonParams());
 
+        lockButton=button("🔓 Verrou OFF",false);
+        lockButton.setOnClickListener(v->toggleLockSelected());
+        pane.addView(lockButton,fullButtonParams());
+
         importButton=button("+ Ajouter / Importer",false);
         importButton.setOnClickListener(v->showImportMenu(selectedId));
         pane.addView(importButton,fullButtonParams());
@@ -262,8 +267,8 @@ public final class MainActivity extends Activity {
 
     private LinearLayout.LayoutParams fullButtonParams() {
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,dp(42));
-        p.bottomMargin=dp(4);
+                ViewGroup.LayoutParams.MATCH_PARENT,dp(38));
+        p.bottomMargin=dp(3);
         return p;
     }
 
@@ -297,7 +302,7 @@ public final class MainActivity extends Activity {
         p.bottomMargin=dp(8);
         card.setLayoutParams(p);
 
-        TextView title=text((note.favorite?"★  ":"")+note.title,
+        TextView title=text((note.locked?"🔒  ":"")+(note.favorite?"★  ":"")+note.title,
                 twoPane?17:18,note.favorite?GOLD:INK,true);
         card.addView(title);
 
@@ -312,6 +317,7 @@ public final class MainActivity extends Activity {
         int count=store.attachmentCount(note.id);
         String meta=new SimpleDateFormat("dd/MM/yyyy · HH:mm",Locale.FRANCE)
                 .format(new Date(note.updatedAt));
+        if(note.locked) meta+="   ·   Verrouillée";
         if(count>0) meta+="   ·   "+count+" élément"+(count>1?"s":"");
         TextView info=text(meta,12,0xff8992a3,false);
         card.addView(info);
@@ -336,13 +342,21 @@ public final class MainActivity extends Activity {
         int count=has?store.attachmentCount(note.id):0;
         selectedCount.setText(has?(count+" élément"+(count>1?"s":"")+" importé"+(count>1?"s":"")):"");
 
-        setEnabled(editButton,has);
+        setEnabled(editButton,has && !note.locked);
         setEnabled(copyButton,has);
         setEnabled(favoriteButton,has);
-        setEnabled(importButton,has);
+        setEnabled(lockButton,has);
+        setEnabled(importButton,has && !note.locked);
         setEnabled(elementsButton,has);
         setEnabled(deleteButton,has);
-        if(has) favoriteButton.setText(note.favorite?"★ Retirer des favoris":"★ Mettre en favori");
+        if(has) {
+            favoriteButton.setText(note.favorite?"★ Retirer des favoris":"★ Mettre en favori");
+            lockButton.setText(note.locked?"🔒 Verrou ON":"🔓 Verrou OFF");
+            selectedCount.setText((note.locked?"🔒 Note verrouillée   ·   ":"")
+                    +count+" élément"+(count>1?"s":"")+" importé"+(count>1?"s":""));
+        } else if(lockButton!=null) {
+            lockButton.setText("🔓 Verrou OFF");
+        }
         if(has) elementsButton.setText(count==0?"Voir les éléments":"Voir les éléments ("+count+")");
     }
 
@@ -362,6 +376,19 @@ public final class MainActivity extends Activity {
         TextView title=text(note.title,22,INK,true);
         title.setPadding(0,0,0,dp(8));
         body.addView(title);
+
+        Button detailLock=button(note.locked?"🔒 Verrou ON":"🔓 Verrou OFF",false);
+        detailLock.setOnClickListener(v->{
+            store.setLocked(note.id,!note.locked);
+            BackupManager.scheduleBackup(this);
+            refresh();
+            Toast.makeText(this,note.locked?"Note déverrouillée":"Note verrouillée",Toast.LENGTH_SHORT).show();
+            showNoteDetails(note.id);
+        });
+        LinearLayout.LayoutParams lockParams=new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,dp(44));
+        lockParams.bottomMargin=dp(10);
+        body.addView(detailLock,lockParams);
 
         TextView content=text(note.content.trim().isEmpty()?"(Aucun texte)":note.content,17,INK,false);
         content.setTextIsSelectable(true);
@@ -393,8 +420,18 @@ public final class MainActivity extends Activity {
         AlertDialog dialog=new AlertDialog.Builder(this)
                 .setView(scroll)
                 .setNegativeButton("Fermer",null)
-                .setNeutralButton("+ Importer",(d,w)->showImportMenu(noteId))
-                .setPositiveButton("Modifier",(d,w)->showEditor(note))
+                .setNeutralButton("+ Importer",(d,w)->{
+                    NoteStore.Note latest=store.get(noteId);
+                    if(latest!=null && latest.locked) {
+                        Toast.makeText(this,"Déverrouille d’abord la note.",Toast.LENGTH_LONG).show();
+                    } else showImportMenu(noteId);
+                })
+                .setPositiveButton("Modifier",(d,w)->{
+                    NoteStore.Note latest=store.get(noteId);
+                    if(latest!=null && latest.locked) {
+                        Toast.makeText(this,"Déverrouille d’abord la note.",Toast.LENGTH_LONG).show();
+                    } else showEditor(latest);
+                })
                 .create();
         dialog.setOnShowListener(d->{
             Button positive=dialog.getButton(AlertDialog.BUTTON_POSITIVE);
@@ -412,9 +449,10 @@ public final class MainActivity extends Activity {
         if(note==null) return;
         int count=store.attachmentCount(noteId);
         String[] choices={
-                "Modifier",
+                note.locked?"Modifier (verrouillé)":"Modifier",
                 "Copier",
                 note.favorite?"★ Retirer des favoris":"★ Mettre en favori",
+                note.locked?"🔒 Verrou ON":"🔓 Verrou OFF",
                 "+ Ajouter / Importer",
                 count==0?"Voir les éléments":"Voir les éléments ("+count+")",
                 "Supprimer"
@@ -423,14 +461,22 @@ public final class MainActivity extends Activity {
                 .setTitle(note.title)
                 .setMessage(note.content.trim().isEmpty()?null:note.content)
                 .setItems(choices,(d,which)->{
-                    if(which==0) showEditor(note);
-                    else if(which==1) copyNote(note);
+                    if(which==0) {
+                        if(note.locked) Toast.makeText(this,"Déverrouille d’abord la note.",Toast.LENGTH_LONG).show();
+                        else showEditor(note);
+                    } else if(which==1) copyNote(note);
                     else if(which==2) {
                         store.setFavorite(note.id,!note.favorite);
                         BackupManager.scheduleBackup(this);
                         refresh();
-                    } else if(which==3) showImportMenu(note.id);
-                    else if(which==4) showAttachments(note.id);
+                    } else if(which==3) {
+                        store.setLocked(note.id,!note.locked);
+                        BackupManager.scheduleBackup(this);
+                        refresh();
+                    } else if(which==4) {
+                        if(note.locked) Toast.makeText(this,"Déverrouille d’abord la note.",Toast.LENGTH_LONG).show();
+                        else showImportMenu(note.id);
+                    } else if(which==5) showAttachments(note.id);
                     else deleteNoteTwoSteps(note);
                 })
                 .setNegativeButton("Fermer",null)
@@ -438,6 +484,10 @@ public final class MainActivity extends Activity {
     }
 
     private void showEditor(NoteStore.Note existing) {
+        if(existing!=null && existing.locked) {
+            Toast.makeText(this,"Cette note est verrouillée. Mets le verrou sur OFF pour la modifier.",Toast.LENGTH_LONG).show();
+            return;
+        }
         LinearLayout form=column();
         form.setPadding(dp(20),dp(8),dp(20),dp(6));
 
@@ -513,7 +563,21 @@ public final class MainActivity extends Activity {
 
     private void editSelected() {
         NoteStore.Note note=store.get(selectedId);
-        if(note!=null) showEditor(note);
+        if(note==null) return;
+        if(note.locked) {
+            Toast.makeText(this,"Déverrouille d’abord la note.",Toast.LENGTH_LONG).show();
+            return;
+        }
+        showEditor(note);
+    }
+
+    private void toggleLockSelected() {
+        NoteStore.Note note=store.get(selectedId);
+        if(note==null) return;
+        store.setLocked(note.id,!note.locked);
+        BackupManager.scheduleBackup(this);
+        refresh();
+        Toast.makeText(this,note.locked?"Note déverrouillée":"Note verrouillée",Toast.LENGTH_SHORT).show();
     }
 
     private void copySelected() {
@@ -574,7 +638,13 @@ public final class MainActivity extends Activity {
     }
 
     private void showImportMenu(long noteId) {
-        if(noteId==0||store.get(noteId)==null) return;
+        if(noteId==0) return;
+        NoteStore.Note target=store.get(noteId);
+        if(target==null) return;
+        if(target.locked) {
+            Toast.makeText(this,"Cette note est verrouillée. Mets le verrou sur OFF pour ajouter un élément.",Toast.LENGTH_LONG).show();
+            return;
+        }
         String[] items={"Photo","Document","Mail","SMS","Article Internet","Vidéo Internet"};
         new AlertDialog.Builder(this)
                 .setTitle("Ajouter / Importer")

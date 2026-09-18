@@ -78,6 +78,8 @@ final class BackupManager {
                 n.put("id",note.id);
                 n.put("title",note.title);
                 n.put("content",note.content);
+                if(note.contentHtml==null) n.put("contentHtml",JSONObject.NULL);
+                else n.put("contentHtml",note.contentHtml);
                 n.put("favorite",note.favorite);
                 n.put("locked",note.locked);
                 n.put("updatedAt",note.updatedAt);
@@ -184,6 +186,8 @@ final class BackupManager {
                 nv.put("id",noteId);
                 nv.put("title",n.optString("title","Note"));
                 nv.put("content",n.optString("content",""));
+                if(n.isNull("contentHtml")) nv.putNull("content_html");
+                else nv.put("content_html",n.optString("contentHtml",null));
                 nv.put("favorite",n.optBoolean("favorite",false)?1:0);
                 nv.put("locked",n.optBoolean("locked",false)?1:0);
                 nv.put("updated_at",n.optLong("updatedAt",System.currentTimeMillis()));

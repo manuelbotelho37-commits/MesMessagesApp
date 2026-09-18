@@ -99,10 +99,10 @@ public final class MainActivity extends Activity {
         LinearLayout root=new LinearLayout(this);
         root.setOrientation(twoPane?LinearLayout.HORIZONTAL:LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
-        root.setPadding(dp(twoPane?14:9),dp(9),dp(twoPane?14:9),dp(9));
+        root.setPadding(dp(twoPane?8:9),dp(twoPane?5:9),dp(twoPane?8:9),dp(twoPane?5:9));
 
         LinearLayout notesPane=column();
-        notesPane.setPadding(dp(3),0,twoPane?dp(12):dp(3),0);
+        notesPane.setPadding(twoPane?dp(10):dp(3),0,dp(3),0);
 
         TextView appTitle=text("MNM",twoPane?30:26,INK,true);
         appTitle.setPadding(dp(2),dp(2),0,dp(8));
@@ -139,17 +139,18 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT,0,1));
 
         if(twoPane) {
-            root.addView(notesPane,new LinearLayout.LayoutParams(
-                    0,ViewGroup.LayoutParams.MATCH_PARENT,1));
-
             ScrollView actionsScroll=new ScrollView(this);
-            actionsScroll.setFillViewport(true);
+            actionsScroll.setFillViewport(false);
             actionsScroll.setClipToPadding(false);
+            actionsScroll.setPadding(0,0,0,dp(8));
             LinearLayout actionPane=buildActionPane();
             actionsScroll.addView(actionPane,new ScrollView.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
             root.addView(actionsScroll,new LinearLayout.LayoutParams(
-                    dp(286),ViewGroup.LayoutParams.MATCH_PARENT));
+                    dp(270),ViewGroup.LayoutParams.MATCH_PARENT));
+
+            root.addView(notesPane,new LinearLayout.LayoutParams(
+                    0,ViewGroup.LayoutParams.MATCH_PARENT,1));
         } else {
             root.addView(notesPane,new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,0,1));
@@ -185,28 +186,28 @@ public final class MainActivity extends Activity {
 
     private LinearLayout buildActionPane() {
         LinearLayout pane=column();
-        pane.setPadding(dp(14),dp(8),dp(5),dp(20));
+        pane.setPadding(dp(10),dp(5),dp(10),dp(8));
         pane.setBackground(shape(0xffeef2f8,18,0xffe0e6ef));
 
-        TextView head=text("Commandes",22,INK,true);
-        head.setPadding(0,0,0,dp(10));
+        TextView head=text("Commandes",19,INK,true);
+        head.setPadding(0,0,0,dp(5));
         pane.addView(head);
 
         Button add=button("+ Ajouter une note",true);
         add.setOnClickListener(v->showEditor(null));
         pane.addView(add,fullButtonParams());
 
-        selectedTitle=text("Choisis une note à gauche",18,INK,true);
-        selectedTitle.setPadding(dp(2),dp(12),dp(2),dp(3));
+        selectedTitle=text("Choisis une note à droite",16,INK,true);
+        selectedTitle.setPadding(dp(2),dp(7),dp(2),dp(2));
         pane.addView(selectedTitle);
 
-        selectedPreview=text("",14,MUTED,false);
-        selectedPreview.setMaxLines(4);
+        selectedPreview=text("",13,MUTED,false);
+        selectedPreview.setMaxLines(2);
         selectedPreview.setEllipsize(TextUtils.TruncateAt.END);
         pane.addView(selectedPreview);
 
-        selectedCount=text("",13,MUTED,false);
-        selectedCount.setPadding(dp(2),dp(3),dp(2),dp(10));
+        selectedCount=text("",12,MUTED,false);
+        selectedCount.setPadding(dp(2),dp(2),dp(2),dp(5));
         pane.addView(selectedCount);
 
         editButton=button("Modifier",false);
@@ -234,17 +235,17 @@ public final class MainActivity extends Activity {
         deleteButton.setOnClickListener(v->deleteSelected());
         pane.addView(deleteButton,fullButtonParams());
 
-        TextView backupHead=text("Sauvegarde",16,INK,true);
-        backupHead.setPadding(dp(2),dp(16),dp(2),dp(6));
+        TextView backupHead=text("Sauvegarde",14,INK,true);
+        backupHead.setPadding(dp(2),dp(7),dp(2),dp(3));
         pane.addView(backupHead);
 
         backupButton=button(BackupManager.isConfigured(this)
                 ?"Sauvegarde automatique ✓"
-                :"Activer sauvegarde automatique",false);
+                :"Activer sauvegarde",false);
         backupButton.setOnClickListener(v->startBackup());
         pane.addView(backupButton,fullButtonParams());
 
-        Button restore=button("Récupérer une sauvegarde",false);
+        Button restore=button("Récupérer sauvegarde",false);
         restore.setOnClickListener(v->chooseRestore());
         pane.addView(restore,fullButtonParams());
 
@@ -261,8 +262,8 @@ public final class MainActivity extends Activity {
 
     private LinearLayout.LayoutParams fullButtonParams() {
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,dp(50));
-        p.bottomMargin=dp(7);
+                ViewGroup.LayoutParams.MATCH_PARENT,dp(42));
+        p.bottomMargin=dp(4);
         return p;
     }
 
@@ -321,7 +322,7 @@ public final class MainActivity extends Activity {
         card.setOnClickListener(v->{
             selectedId=note.id;
             if(twoPane) refresh();
-            else showCompactActions(note.id);
+            showNoteDetails(note.id);
         });
         return card;
     }
@@ -330,7 +331,7 @@ public final class MainActivity extends Activity {
         if(!twoPane||selectedTitle==null) return;
         NoteStore.Note note=selectedId==0?null:store.get(selectedId);
         boolean has=note!=null;
-        selectedTitle.setText(has?note.title:"Choisis une note à gauche");
+        selectedTitle.setText(has?note.title:"Choisis une note à droite");
         selectedPreview.setText(has?note.content:"");
         int count=has?store.attachmentCount(note.id):0;
         selectedCount.setText(has?(count+" élément"+(count>1?"s":"")+" importé"+(count>1?"s":"")):"");
@@ -349,6 +350,61 @@ public final class MainActivity extends Activity {
         if(b==null) return;
         b.setEnabled(enabled);
         b.setAlpha(enabled?1f:0.42f);
+    }
+
+    private void showNoteDetails(long noteId) {
+        NoteStore.Note note=store.get(noteId);
+        if(note==null) return;
+
+        LinearLayout body=column();
+        body.setPadding(dp(18),dp(8),dp(18),dp(14));
+
+        TextView title=text(note.title,22,INK,true);
+        title.setPadding(0,0,0,dp(8));
+        body.addView(title);
+
+        TextView content=text(note.content.trim().isEmpty()?"(Aucun texte)":note.content,17,INK,false);
+        content.setTextIsSelectable(true);
+        content.setPadding(0,0,0,dp(12));
+        body.addView(content);
+
+        List<NoteStore.Attachment> items=store.listAttachments(noteId);
+        if(!items.isEmpty()) {
+            TextView h=text("Éléments importés",16,INK,true);
+            h.setPadding(0,dp(4),0,dp(7));
+            body.addView(h);
+
+            for(NoteStore.Attachment a:items) {
+                Button item=button(kindIcon(a.kind)+"  "+a.label,false);
+                item.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
+                item.setOnClickListener(v->openAttachment(a));
+                LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,dp(46));
+                ip.bottomMargin=dp(6);
+                body.addView(item,ip);
+            }
+        }
+
+        ScrollView scroll=new ScrollView(this);
+        scroll.setFillViewport(false);
+        scroll.addView(body,new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        AlertDialog dialog=new AlertDialog.Builder(this)
+                .setView(scroll)
+                .setNegativeButton("Fermer",null)
+                .setNeutralButton("+ Importer",(d,w)->showImportMenu(noteId))
+                .setPositiveButton("Modifier",(d,w)->showEditor(note))
+                .create();
+        dialog.setOnShowListener(d->{
+            Button positive=dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            Button neutral=dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
+            Button negative=dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+            if(positive!=null) positive.setAllCaps(false);
+            if(neutral!=null) neutral.setAllCaps(false);
+            if(negative!=null) negative.setAllCaps(false);
+        });
+        dialog.show();
     }
 
     private void showCompactActions(long noteId) {
@@ -960,12 +1016,12 @@ public final class MainActivity extends Activity {
         Button b=new Button(this);
         b.setText(label);
         b.setAllCaps(false);
-        b.setTextSize(twoPane?15:16);
+        b.setTextSize(twoPane?13:16);
         b.setMinHeight(0);
         b.setMinimumHeight(0);
         b.setMinWidth(0);
         b.setMinimumWidth(0);
-        b.setPadding(dp(twoPane?9:12),dp(7),dp(twoPane?9:12),dp(7));
+        b.setPadding(dp(twoPane?7:12),dp(twoPane?4:7),dp(twoPane?7:12),dp(twoPane?4:7));
         b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));
         b.setTextColor(primary?WHITE:INK);
         b.setBackground(new RippleDrawable(

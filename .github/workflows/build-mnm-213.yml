@@ -1,0 +1,67 @@
+name: Build MNM 2.13 Verified
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'mnm213/**'
+      - '.github/workflows/build-mnm-213.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Install Android SDK packages
+        run: |
+          SDKMANAGER=/usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager
+          yes | $SDKMANAGER --licenses >/dev/null || true
+          $SDKMANAGER "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Extract source
+        run: |
+          rm -rf mnm213/work
+          mkdir -p mnm213/work
+          unzip -q mnm213/MNM-2.13-SOURCE.zip -d mnm213/work
+          test -f mnm213/work/app/build.gradle
+          test -f mnm213/work/.signing/mnm-release-2026.p12
+
+      - name: Build signed release
+        working-directory: mnm213/work
+        run: gradle --no-daemon assembleRelease
+
+      - name: Verify update compatibility
+        run: |
+          APK=mnm213/work/app/build/outputs/apk/release/app-release.apk
+          test -f "$APK"
+          AAPT=/usr/local/lib/android/sdk/build-tools/35.0.0/aapt
+          APKSIGNER=/usr/local/lib/android/sdk/build-tools/35.0.0/apksigner
+          "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
+          grep -q "package: name='fr.manubotelho.mesnotes'" /tmp/badging.txt
+          grep -q "versionCode='35'" /tmp/badging.txt
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/signing.txt
+          DIGEST=$(grep -i "certificate SHA-256 digest" /tmp/signing.txt | head -1 | awk -F': ' '{print $2}' | tr -d ':' | tr '[:upper:]' '[:lower:]')
+          test "$DIGEST" = "4523be024571af41dd20f4219fe705b440f415c6685f511c4f87f782e619e61d"
+          mkdir -p output
+          cp "$APK" output/MNM-2.13-MISE-A-JOUR.apk
+
+      - name: Upload verified APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MNM-2.13-MISE-A-JOUR
+          path: output/MNM-2.13-MISE-A-JOUR.apk
+          if-no-files-found: error

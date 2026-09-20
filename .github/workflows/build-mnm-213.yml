@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'mnm213/**'
+      - 'mnm213/source.b64.*'
       - '.github/workflows/build-mnm-213.yml'
   workflow_dispatch:
 
@@ -32,15 +32,18 @@ jobs:
           yes | $SDKMANAGER --licenses >/dev/null || true
           $SDKMANAGER "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Extract source
+      - name: Rebuild and check source archive
         run: |
-          rm -rf mnm213/work
+          rm -rf mnm213/work mnm213/MNM-2.13-SOURCE.zip
+          cat mnm213/source.b64.* | tr -d '\n\r ' | base64 -d > mnm213/MNM-2.13-SOURCE.zip
+          test "$(stat -c%s mnm213/MNM-2.13-SOURCE.zip)" = "53533"
+          unzip -t mnm213/MNM-2.13-SOURCE.zip
           mkdir -p mnm213/work
           unzip -q mnm213/MNM-2.13-SOURCE.zip -d mnm213/work
           test -f mnm213/work/app/build.gradle
           test -f mnm213/work/.signing/mnm-release-2026.p12
 
-      - name: Build signed release
+      - name: Build signed release APK
         working-directory: mnm213/work
         run: gradle --no-daemon assembleRelease
 
@@ -53,6 +56,7 @@ jobs:
           "$AAPT" dump badging "$APK" | tee /tmp/badging.txt
           grep -q "package: name='fr.manubotelho.mesnotes'" /tmp/badging.txt
           grep -q "versionCode='35'" /tmp/badging.txt
+          grep -q "versionName='2.13'" /tmp/badging.txt
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee /tmp/signing.txt
           DIGEST=$(grep -i "certificate SHA-256 digest" /tmp/signing.txt | head -1 | awk -F': ' '{print $2}' | tr -d ':' | tr '[:upper:]' '[:lower:]')
           test "$DIGEST" = "4523be024571af41dd20f4219fe705b440f415c6685f511c4f87f782e619e61d"

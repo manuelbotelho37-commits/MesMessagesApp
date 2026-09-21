@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'mnm226/source.b64.*'
+      - 'mnm226final/source.b64.*'
       - '.github/workflows/build-mnm-226.yml'
   workflow_dispatch:
 
@@ -37,23 +37,23 @@ jobs:
 
       - name: Rebuild and check source archive
         run: |
-          rm -rf mnm226/work mnm226/MNM-2.26-SOURCE.zip
-          cat mnm226/source.b64.* | tr -d '\n\r ' | base64 -d > mnm226/MNM-2.26-SOURCE.zip
-          test "$(stat -c%s mnm226/MNM-2.26-SOURCE.zip)" = "61320"
-          echo "ded1c18ebf2bed47e012805665dda9ef310f960c9a3eabeb6bac7f7cd1f39534  mnm226/MNM-2.26-SOURCE.zip" | sha256sum -c -
-          unzip -t mnm226/MNM-2.26-SOURCE.zip
-          mkdir -p mnm226/work
-          unzip -q mnm226/MNM-2.26-SOURCE.zip -d mnm226/work
-          test -f mnm226/work/app/build.gradle
-          test -f mnm226/work/.signing/mnm-release-2026.p12
+          rm -rf mnm226final/work mnm226final/MNM-2.26-SOURCE.zip
+          cat mnm226final/source.b64.* | tr -d '\n\r ' | base64 -d > mnm226final/MNM-2.26-SOURCE.zip
+          test "$(stat -c%s mnm226final/MNM-2.26-SOURCE.zip)" = "60787"
+          echo "3ed6e2db371bc24c29640127d4136feaae4ebed77d22fb17b3ad9b6f83c5e609  mnm226final/MNM-2.26-SOURCE.zip" | sha256sum -c -
+          unzip -t mnm226final/MNM-2.26-SOURCE.zip
+          mkdir -p mnm226final/work
+          unzip -q mnm226final/MNM-2.26-SOURCE.zip -d mnm226final/work
+          test -f mnm226final/work/app/build.gradle
+          test -f mnm226final/work/.signing/mnm-release-2026.p12
 
       - name: Build signed release APK
-        working-directory: mnm226/work
+        working-directory: mnm226final/work
         run: gradle --no-daemon assembleRelease
 
       - name: Verify update compatibility
         run: |
-          APK=mnm226/work/app/build/outputs/apk/release/app-release.apk
+          APK=mnm226final/work/app/build/outputs/apk/release/app-release.apk
           test -f "$APK"
           AAPT=/usr/local/lib/android/sdk/build-tools/35.0.0/aapt
           APKSIGNER=/usr/local/lib/android/sdk/build-tools/35.0.0/apksigner
@@ -76,14 +76,14 @@ jobs:
 
       - name: Export verified APK for retrieval
         run: |
-          rm -rf mnm226/result
-          mkdir -p mnm226/result
+          rm -rf mnm226final/result
+          mkdir -p mnm226final/result
           base64 -w 0 output/MNM-2.26-MISE-A-JOUR.apk > /tmp/mnm226-apk.b64
-          split -b 500000 -d -a 2 /tmp/mnm226-apk.b64 mnm226/result/apk.b64.
-          sha256sum output/MNM-2.26-MISE-A-JOUR.apk | awk '{print $1}' > mnm226/result/APK-SHA256.txt
-          printf 'MNM-2.26-MISE-A-JOUR.apk\nversionCode=48\nversionName=2.26\npackage=fr.manubotelho.mesnotes\nverified=true\n' > mnm226/result/VERIFIED.txt
+          split -b 500000 -d -a 2 /tmp/mnm226-apk.b64 mnm226final/result/apk.b64.
+          sha256sum output/MNM-2.26-MISE-A-JOUR.apk | awk '{print $1}' > mnm226final/result/APK-SHA256.txt
+          printf 'MNM-2.26-MISE-A-JOUR.apk\nversionCode=48\nversionName=2.26\npackage=fr.manubotelho.mesnotes\nverified=true\n' > mnm226final/result/VERIFIED.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add mnm226/result
+          git add mnm226final/result
           git commit -m "MNM 2.26 verified APK result"
           git push

@@ -1,0 +1,5 @@
+MNM-2.26-MISE-A-JOUR.apk
+versionCode=48
+versionName=2.26
+package=fr.manubotelho.mesnotes
+verified=true

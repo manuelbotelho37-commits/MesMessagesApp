@@ -8,6 +8,9 @@ on:
       - '.github/workflows/build-mnm-226.yml'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -70,3 +73,17 @@ jobs:
           name: MNM-2.26-MISE-A-JOUR
           path: output/MNM-2.26-MISE-A-JOUR.apk
           if-no-files-found: error
+
+      - name: Export verified APK for retrieval
+        run: |
+          rm -rf mnm226/result
+          mkdir -p mnm226/result
+          base64 -w 0 output/MNM-2.26-MISE-A-JOUR.apk > /tmp/mnm226-apk.b64
+          split -b 500000 -d -a 2 /tmp/mnm226-apk.b64 mnm226/result/apk.b64.
+          sha256sum output/MNM-2.26-MISE-A-JOUR.apk | awk '{print $1}' > mnm226/result/APK-SHA256.txt
+          printf 'MNM-2.26-MISE-A-JOUR.apk\nversionCode=48\nversionName=2.26\npackage=fr.manubotelho.mesnotes\nverified=true\n' > mnm226/result/VERIFIED.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mnm226/result
+          git commit -m "MNM 2.26 verified APK result"
+          git push

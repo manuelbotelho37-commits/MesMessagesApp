@@ -3,6 +3,8 @@ name: Build Facture APK
 on:
   push:
     branches: [ facture-build-20260922 ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:

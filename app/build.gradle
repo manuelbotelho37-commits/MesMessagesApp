@@ -4,15 +4,6 @@ android {
     namespace 'com.mesmessages.app'
     compileSdk 35
 
-    signingConfigs {
-        debug {
-            storeFile rootProject.file('.signing/facture.keystore')
-            storePassword 'Facture2026MB'
-            keyAlias 'facture'
-            keyPassword 'Facture2026MB'
-        }
-    }
-
     defaultConfig {
         applicationId 'fr.manubotelho.facture'
         minSdk 26
@@ -22,7 +13,7 @@ android {
     }
 
     buildTypes {
-        debug { signingConfig signingConfigs.debug }
+        debug { }
     }
 
     compileOptions {

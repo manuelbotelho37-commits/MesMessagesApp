@@ -3,9 +3,10 @@ name: Build Facture APK
 on:
   push:
     branches: [ facture-build-20260922 ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -13,6 +14,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: facture-build-20260922
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -37,14 +40,40 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build APK
-        run: gradle assembleDebug
+      - name: Build and capture result
+        id: facture_build
+        shell: bash
+        run: |
+          set +e
+          gradle assembleDebug > facture-build-full.log 2>&1
+          STATUS=$?
+          tail -n 350 facture-build-full.log > FACTURE_BUILD_LOG.txt
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          rm -f FACTURE_APK_B64_*
+          if [ "$STATUS" -eq 0 ]; then
+            cp app/build/outputs/apk/debug/app-debug.apk Facture-1.0.apk
+            sha256sum Facture-1.0.apk > FACTURE_APK_SHA256.txt
+            base64 -w 0 Facture-1.0.apk | split -b 700000 - FACTURE_APK_B64_
+            ls FACTURE_APK_B64_* > FACTURE_APK_FILES.txt
+            echo "OK" > FACTURE_BUILD_STATUS.txt
+          else
+            echo "FAIL" > FACTURE_BUILD_STATUS.txt
+          fi
+          exit 0
 
-      - name: Prepare APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk Facture-1.0.apk
+      - name: Save result on technical branch
+        if: always()
+        shell: bash
+        run: |
+          git config user.name "Facture Builder"
+          git config user.email "actions@users.noreply.github.com"
+          git add FACTURE_BUILD_STATUS.txt FACTURE_BUILD_LOG.txt
+          if [ -f FACTURE_APK_FILES.txt ]; then
+            git add FACTURE_APK_FILES.txt FACTURE_APK_SHA256.txt FACTURE_APK_B64_*
+          fi
+          git commit -m "Facture automated build result [skip ci]" || true
+          git push origin HEAD:facture-build-20260922
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Facture-1.0-apk
-          path: Facture-1.0.apk
+      - name: Stop on build failure
+        if: steps.facture_build.outputs.status != '0'
+        run: exit 1

@@ -3,38 +3,48 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:preDebugBuild UP-TO-DATE
 > Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:javaPreCompileDebug
-> Task :app:checkDebugAarMetadata FAILED
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/facture_build-1790113368945.json
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:mergeDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:parseDebugLocalResources
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:mergeDebugShaders
+> Task :app:processDebugManifestForPackage
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:processDebugJavaRes NO-SOURCE
+> Task :app:processDebugResources
+> Task :app:mergeDebugJavaResource
 
-FAILURE: Build failed with an exception.
+> Task :app:compileDebugJavaWithJavac
+Note: /home/runner/work/MesMessagesApp/MesMessagesApp/app/src/main/java/com/mesmessages/app/FactureActivity.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
 
-* What went wrong:
-Execution failed for task ':app:checkDebugAarMetadata'.
-> Configuration `:app:debugRuntimeClasspath` contains AndroidX dependencies, but the `android.useAndroidX` property is not enabled, which may cause runtime issues.
-  Set `android.useAndroidX=true` in the `gradle.properties` file and retry.
-  The following AndroidX dependencies are detected:
-  :app:debugRuntimeClasspath -> androidx.core:core:1.15.0
-  :app:debugRuntimeClasspath -> androidx.core:core:1.15.0 -> androidx.annotation:annotation:1.8.1
-  :app:debugRuntimeClasspath -> androidx.core:core:1.15.0 -> androidx.annotation:annotation:1.8.1 -> androidx.annotation:annotation-jvm:1.8.1
-  :app:debugRuntimeClasspath -> androidx.core:core:1.15.0 -> androidx.annotation:annotation-experimental:1.4.1
-  :app:debugRuntimeClasspath -> androidx.core:core:1.15.0 -> androidx.collection:collection:1.4.2
-  :app:debugRuntimeClasspath -> androidx.core:core:1.15.0 -> androidx.collection:collection:1.4.2 -> androidx.collection:collection-jvm:1.4.2
-  :app:debugRuntimeClasspath -> androidx.core:core:1.15.0 -> androidx.concurrent:concurrent-futures:1.1.0
-  :app:debugRuntimeClasspath -> androidx.core:core:1.15.0 -> androidx.interpolator:interpolator:1.0.0
-  :app:debugRuntimeClasspath -> androidx.core:core:1.15.0 -> androidx.lifecycle:lifecycle-runtime:2.6.2
-  :app:debugRuntimeClasspath -> androidx.core:core:1.15.0 -> androidx.lifecycle:lifecycle-runtime:2.6.2 -> androidx.arch.core:core-common:2.2.0
-  :app:debugRuntimeClasspath -> androidx.core:core:1.15.0 -> androidx.lifecycle:lifecycle-runtime:2.6.2 -> androidx.arch.core:core-runtime:2.2.0
-  :app:debugRuntimeClasspath -> androidx.core:core:1.15.0 -> androidx.lifecycle:lifecycle-runtime:2.6.2 -> androidx.lifecycle:lifecycle-common:2.6.2
-  :app:debugRuntimeClasspath -> androidx.core:core:1.15.0 -> androidx.lifecycle:lifecycle-runtime:2.6.2 -> androidx.profileinstaller:profileinstaller:1.3.0
-  :app:debugRuntimeClasspath -> androidx.core:core:1.15.0 -> androidx.lifecycle:lifecycle-runtime:2.6.2 -> androidx.profileinstaller:profileinstaller:1.3.0 -> androidx.startup:startup-runtime:1.1.1
-  :app:debugRuntimeClasspath -> androidx.core:core:1.15.0 -> androidx.tracing:tracing:1.2.0
-  :app:debugRuntimeClasspath -> androidx.core:core:1.15.0 -> androidx.versionedparcelable:versionedparcelable:1.1.1
+> Task :app:dexBuilderDebug
+> Task :app:mergeDebugGlobalSynthetics
+> Task :app:mergeDebugJniLibFolders
+> Task :app:checkDebugDuplicateClasses
+> Task :app:mergeDebugNativeLibs NO-SOURCE
+> Task :app:stripDebugDebugSymbols NO-SOURCE
+> Task :app:mergeLibDexDebug
+> Task :app:mergeProjectDexDebug
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:mergeExtDexDebug
+> Task :app:packageDebug
+> Task :app:createDebugApkListingFileRedirect
+> Task :app:assembleDebug
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/facture_build-1790113438970.json
 
-* Try:
-> Run with --stacktrace option to get the stack trace.
-> Run with --info or --debug option to get more log output.
-> Run with --scan to get full insights.
-> Get more help at https://help.gradle.org.
-
-BUILD FAILED in 11s
-2 actionable tasks: 2 executed
+BUILD SUCCESSFUL in 37s
+32 actionable tasks: 32 executed
